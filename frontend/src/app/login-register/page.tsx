@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 
+//import in router + register/login services
+import { useRouter } from "next/navigation";
+import { registerUser, loginUser } from "@/lib/api-service";
+
 type Mode = "login" | "register";
 type Role = "customer" | "employee";
 
@@ -14,6 +18,7 @@ interface FormState {
   lastName: string;
   phone: string;
   address: string;
+  employeeId: string; // added for employees
 }
 
 const INITIAL_FORM: FormState = {
@@ -24,6 +29,7 @@ const INITIAL_FORM: FormState = {
   lastName: "",
   phone: "",
   address: "",
+  employeeId: "", // added to mathc FormState change
 };
 
 const PERKS: string[] = [
@@ -66,14 +72,52 @@ export default function LoginRegisterPage() {
   const [role, setRole] = useState<Role>("customer");
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
 
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e: React.MouseEvent<HTMLButtonElement>): void => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: wire up to POST /api/login or POST /api/register
-    console.log("Submit", { mode, role, form });
+    setLoading(true);
+
+    try {
+      if (mode === "register") {
+        // Simple password check before hitting the API
+        if (form.password !== form.confirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+
+        // Map UI form to the API RegisterInput structure
+        await registerUser({
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          phone: form.phone,
+          password: form.password,
+          role: role,
+          // Conditionally include profile data
+          ...(role === "customer" ? { deliveryAddress: form.address } : { employeeId: form.employeeId })
+        } as any); // Type cast here or ensure RegisterInput matches exactly
+
+        alert("Registration successful! Please sign in.");
+        setMode("login");
+      } else {
+        // Login Logic
+        await loginUser({
+          email: form.email,
+          password: form.password,
+        });
+        
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      alert(err.message || "An error occurred");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const switchMode = (next: Mode): void => {
@@ -214,6 +258,17 @@ export default function LoginRegisterPage() {
               <Field label="Delivery Address" name="address" type="text" placeholder="123 Main St, San Jose, CA" value={form.address} onChange={handleChange} />
             )}
 
+            {mode === "register" && role === "employee" && (
+              <Field 
+                label="Employee ID" 
+                name="employeeId" 
+                type="text" 
+                placeholder="EMP-12345" 
+                value={form.employeeId} 
+                onChange={handleChange} 
+              />
+            )}
+
             <Field
               label="Password"
               name="password"
@@ -231,9 +286,9 @@ export default function LoginRegisterPage() {
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            className="w-full bg-forest text-cream font-medium py-3.5 rounded-xl hover:bg-sage hover:-translate-y-0.5 transition-all duration-200 text-base mb-5 shadow-lg shadow-forest/20"
+            className="w-full bg-forest text-cream font-medium py-3.5 rounded-xl hover:bg-sage disabled:bg-sage/50 transition-all duration-200 text-base mb-5"
           >
-            {mode === "login" ? "Sign In →" : "Create Account →"}
+            {loading ? "Processing..." : mode === "login" ? "Sign In →" : "Create Account →"}
           </button>
 
           {/* Divider */}
