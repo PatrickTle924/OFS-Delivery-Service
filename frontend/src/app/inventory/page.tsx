@@ -22,6 +22,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>(CATEGORIES);
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [formData, setFormData] = useState<Partial<InventoryItem>>({});
@@ -214,7 +215,9 @@ export default function InventoryPage() {
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategories.includes(item.category.toLowerCase());
-    return matchesSearch && matchesCategory;
+    const isLowStock = item.quantity <= item.reorderLevel;
+    const matchesLowStockFilter = showLowStockOnly ? isLowStock : true;
+    return matchesSearch && matchesCategory && matchesLowStockFilter;
   });
 
   const lowStockItems = filteredItems.filter((item) => item.quantity <= item.reorderLevel);
@@ -270,6 +273,18 @@ export default function InventoryPage() {
               {category}
             </button>
           ))}
+
+          {/* Low Stock Filter */}
+          <button
+            onClick={() => setShowLowStockOnly(!showLowStockOnly)}
+            className={`px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200 ${
+              showLowStockOnly
+                ? "bg-red-500 text-white shadow-md"
+                : "bg-white border-[1.5px] border-[#ddd] text-[#666] hover:border-red-500"
+            }`}
+          >
+            Low Stock Only
+          </button>
         </div>
 
         {/* Low Stock Alert */}
