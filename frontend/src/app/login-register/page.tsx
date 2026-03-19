@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-
-//import in router + register/login services
 import { useRouter } from "next/navigation";
 import { registerUser, loginUser } from "@/lib/api-service";
 
@@ -18,7 +16,7 @@ interface FormState {
   lastName: string;
   phone: string;
   address: string;
-  employeeId: string; // added for employees
+  employeeId: string;
 }
 
 const INITIAL_FORM: FormState = {
@@ -29,7 +27,7 @@ const INITIAL_FORM: FormState = {
   lastName: "",
   phone: "",
   address: "",
-  employeeId: "", // added to mathc FormState change
+  employeeId: "",
 };
 
 const PERKS: string[] = [
@@ -39,6 +37,7 @@ const PERKS: string[] = [
   "Smart route optimization",
 ];
 
+// ── Reusable field component ───────────────────────────────────────
 interface FieldProps {
   label: string;
   name: string;
@@ -67,54 +66,51 @@ function Field({ label, name, type, placeholder, value, onChange }: FieldProps) 
   );
 }
 
+// ── Page ──────────────────────────────────────────────────────────
 export default function LoginRegisterPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [role, setRole] = useState<Role>("customer");
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
-
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setLoading(true);
 
     try {
       if (mode === "register") {
-        // Simple password check before hitting the API
         if (form.password !== form.confirmPassword) {
-          throw new Error("Passwords do not match");
+          throw new Error("Passwords do not match.");
         }
-
-        // Map UI form to the API RegisterInput structure
         await registerUser({
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
           phone: form.phone,
           password: form.password,
-          role: role,
-          // Conditionally include profile data
-          ...(role === "customer" ? { deliveryAddress: form.address } : { employeeId: form.employeeId })
-        } as any); // Type cast here or ensure RegisterInput matches exactly
+          role,
+          ...(role === "customer"
+            ? { deliveryAddress: form.address }
+            : { employeeId: form.employeeId }),
+        } as any);
 
-        alert("Registration successful! Please sign in.");
         setMode("login");
+        setForm(INITIAL_FORM);
+        setError("Registration successful! Please sign in.");
       } else {
-        // Login Logic
-        await loginUser({
-          email: form.email,
-          password: form.password,
-        });
-        
-        router.push("/dashboard");
+        await loginUser({ email: form.email, password: form.password });
+        router.push("/user/browse");
       }
     } catch (err: any) {
-      alert(err.message || "An error occurred");
+      setError(err.message || "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -123,6 +119,7 @@ export default function LoginRegisterPage() {
   const switchMode = (next: Mode): void => {
     setMode(next);
     setForm(INITIAL_FORM);
+    setError(null);
   };
 
   return (
@@ -133,17 +130,11 @@ export default function LoginRegisterPage() {
       ══════════════════════════════ */}
       <div className="hidden md:flex flex-col justify-between px-12 py-10 relative overflow-hidden bg-forest">
 
-        {/* ── Layered radial gradients ── */}
-        {/* Top-right mint bloom */}
+        {/* Layered radial gradients */}
         <div className="absolute top-[-15%] right-[-10%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.22)_0%,transparent_65%)] pointer-events-none" />
-        {/* Center-left sage glow */}
         <div className="absolute top-[35%] left-[-20%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(74,124,89,0.30)_0%,transparent_65%)] pointer-events-none" />
-        {/* Bottom clay accent */}
         <div className="absolute bottom-[-10%] right-[10%] w-[350px] h-[350px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.14)_0%,transparent_65%)] pointer-events-none" />
-        {/* Bottom-left deep pool */}
         <div className="absolute bottom-[-5%] left-[-5%] w-[300px] h-[300px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.12)_0%,transparent_65%)] pointer-events-none" />
-
-
 
         {/* Logo */}
         <Link href="/" className="font-playfair text-2xl text-cream tracking-tight relative z-10">
@@ -178,12 +169,9 @@ export default function LoginRegisterPage() {
       ══════════════════════════════ */}
       <div className="flex items-center justify-center px-6 py-12 md:px-12 bg-cream relative overflow-hidden">
 
-        {/* ── Right-panel radial gradients ── */}
-        {/* Top-left mint drift */}
+        {/* Right-panel radial gradients */}
         <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.25)_0%,transparent_65%)] pointer-events-none" />
-        {/* Bottom-right clay warmth */}
         <div className="absolute bottom-[-15%] right-[-10%] w-[450px] h-[450px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.12)_0%,transparent_65%)] pointer-events-none" />
-        {/* Center sage whisper */}
         <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(74,124,89,0.06)_0%,transparent_70%)] pointer-events-none" />
 
         <div className="w-full max-w-[400px] relative z-10">
@@ -239,12 +227,23 @@ export default function LoginRegisterPage() {
             </div>
           )}
 
+          {/* Error / success message */}
+          {error && (
+            <div className={`text-xs px-4 py-3 rounded-xl mb-5 font-medium ${
+              error.startsWith("Registration successful")
+                ? "bg-mint/20 text-sage border border-mint/40"
+                : "bg-[#fdeaea] text-[#b94040] border border-[#f5c0c0]"
+            }`}>
+              {error}
+            </div>
+          )}
+
           {/* Fields */}
           <div className="flex flex-col gap-4 mb-5">
             {mode === "register" && (
               <div className="grid grid-cols-2 gap-3">
-                <Field label="First Name" name="firstName" type="text" placeholder="Jane" value={form.firstName} onChange={handleChange} />
-                <Field label="Last Name"  name="lastName"  type="text" placeholder="Doe"  value={form.lastName}  onChange={handleChange} />
+                <Field label="First Name" name="firstName" type="text" placeholder="Jane"  value={form.firstName} onChange={handleChange} />
+                <Field label="Last Name"  name="lastName"  type="text" placeholder="Doe"   value={form.lastName}  onChange={handleChange} />
               </div>
             )}
 
@@ -259,14 +258,7 @@ export default function LoginRegisterPage() {
             )}
 
             {mode === "register" && role === "employee" && (
-              <Field 
-                label="Employee ID" 
-                name="employeeId" 
-                type="text" 
-                placeholder="EMP-12345" 
-                value={form.employeeId} 
-                onChange={handleChange} 
-              />
+              <Field label="Employee ID" name="employeeId" type="text" placeholder="EMP-12345" value={form.employeeId} onChange={handleChange} />
             )}
 
             <Field
@@ -286,9 +278,12 @@ export default function LoginRegisterPage() {
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            className="w-full bg-forest text-cream font-medium py-3.5 rounded-xl hover:bg-sage disabled:bg-sage/50 transition-all duration-200 text-base mb-5"
+            disabled={loading}
+            className="w-full bg-forest text-cream font-medium py-3.5 rounded-xl hover:bg-sage disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-base mb-5 shadow-lg shadow-forest/20"
           >
-            {loading ? "Processing..." : mode === "login" ? "Sign In →" : "Create Account →"}
+            {loading
+              ? "Processing..."
+              : mode === "login" ? "Sign In →" : "Create Account →"}
           </button>
 
           {/* Divider */}
@@ -303,20 +298,14 @@ export default function LoginRegisterPage() {
             {mode === "login" ? (
               <>
                 Don&apos;t have an account?{" "}
-                <button
-                  onClick={() => switchMode("register")}
-                  className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-                >
+                <button onClick={() => switchMode("register")} className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors">
                   Register now
                 </button>
               </>
             ) : (
               <>
                 Already have an account?{" "}
-                <button
-                  onClick={() => switchMode("login")}
-                  className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-                >
+                <button onClick={() => switchMode("login")} className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors">
                   Sign in
                 </button>
               </>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import Navbar from "@/components/Navbar";
 
 const MARQUEE_ITEMS: string[] = [
   "Fresh Produce", "Organic Meats", "Local Dairy",
@@ -107,14 +107,6 @@ const FEATURES: Feature[] = [
 ];
 
 export default function HomePage() {
-  const [scrolled, setScrolled] = useState<boolean>(false);
-
-  useEffect(() => {
-    const handleScroll = (): void => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   const scrollTo = (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -123,35 +115,14 @@ export default function HomePage() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-cream relative">
 
+      {/* Global background gradients */}
       <div className="pointer-events-none fixed top-[-20%] left-[-15%] w-175 h-175 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.22)_0%,transparent_65%)] -z-10" />
       <div className="pointer-events-none fixed top-[-10%] right-[-10%] w-125 h-125 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.12)_0%,transparent_65%)] -z-10" />
       <div className="pointer-events-none fixed top-[40%] left-[30%] w-225 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(74,124,89,0.07)_0%,transparent_70%)] -z-10" />
       <div className="pointer-events-none fixed bottom-[-15%] left-[-5%] w-150 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.15)_0%,transparent_65%)] -z-10" />
 
-      {/* ── NAV ── */}
-      <nav
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5 transition-all duration-500 ${
-          scrolled ? "bg-cream/80 backdrop-blur-xl shadow-sm shadow-forest/5" : "bg-transparent"
-        }`}
-      >
-        <Link href="/" className="font-playfair text-2xl text-forest tracking-tight">
-          OFS<span className="text-clay italic">.</span>
-        </Link>
-        <div className="flex items-center gap-8">
-          <a href="#how-it-works" onClick={scrollTo("how-it-works")} className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
-            How It Works
-          </a>
-          <a href="#features" onClick={scrollTo("features")} className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
-            Features
-          </a>
-          <Link
-            href="/login-register"
-            className="bg-forest text-cream text-sm font-medium px-5 py-2.5 rounded-full hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
-          >
-            Sign In
-          </Link>
-        </div>
-      </nav>
+      {/* ── Shared Navbar ── */}
+      <Navbar />
 
       {/* ── HERO ── */}
       <section className="relative min-h-screen flex flex-col justify-center px-8 pt-32 pb-20 max-w-7xl mx-auto">
@@ -183,7 +154,7 @@ export default function HomePage() {
 
           <div className="flex flex-wrap items-center gap-5">
             <Link
-              href="#"
+              href="/user/browse"
               className="bg-forest text-cream font-medium px-8 py-4 rounded-full hover:bg-sage hover:-translate-y-0.5 transition-all duration-200 shadow-xl shadow-forest/25 text-base"
             >
               Shop Now
@@ -250,7 +221,7 @@ export default function HomePage() {
         <h2 className="font-playfair text-4xl md:text-5xl text-forest leading-tight mb-16">
           Everything you need,
           <br />
-          <em className="text-clay ">nothing you don&apos;t</em>
+          <em className="text-clay">nothing you don&apos;t</em>
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -279,12 +250,9 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_20%,rgba(196,133,90,0.15)_0%,transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_60%_90%,rgba(74,124,89,0.25)_0%,transparent_50%)]" />
         <div className="absolute inset-0 opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJub2lzZSI+PGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuNjUiIG51bU9jdGF2ZXM9IjMiIHN0aXRjaFRpbGVzPSJzdGl0Y2giLz48L2ZpbHRlcj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgZmlsdGVyPSJ1cmwoI25vaXNlKSIgb3BhY2l0eT0iMSIvPjwvc3ZnPg==')]" />
-
         <div className="relative z-10 px-10 py-24 text-center text-cream">
           <p className="text-mint/70 text-xs font-medium tracking-[0.16em] uppercase mb-4">Start today</p>
-          <h2 className="font-playfair text-4xl md:text-5xl mb-5">
-            Ready to eat fresher?
-          </h2>
+          <h2 className="font-playfair text-4xl md:text-5xl mb-5">Ready to eat fresher?</h2>
           <p className="text-cream/60 max-w-md mx-auto mb-12 font-light leading-relaxed text-base">
             Join OFS today and get organic groceries delivered right to your door —
             fast, fresh, and tracked every step of the way.
