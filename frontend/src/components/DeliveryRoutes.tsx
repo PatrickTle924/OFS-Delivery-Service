@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Order } from "@/types/routing";
-import { OrderCard } from "./OrderCard";
+import { OrderCard } from "./RouteOrderCard";
 import { Card } from "./Card";
 import { FaRoute } from "react-icons/fa6";
 

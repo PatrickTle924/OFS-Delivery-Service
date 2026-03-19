@@ -1,7 +1,7 @@
 "use client";
 
 import Navbar from "@/components/Navbar";
-import OrderCard, { OrderData } from "@/components/OrderCard";
+import OrderCard, { OrderData } from "@/components/RouteOrderCard";
 import Link from "next/link";
 
 //dummy data just to display stuff
@@ -9,31 +9,31 @@ const DUMMY_ORDERS: OrderData[] = [
   {
     order_id: 8492,
     ordered_at: "2026-03-15T14:30:00Z",
-    total_cost: 64.20,
+    total_cost: 64.2,
     status: "in progress",
-    item_count: 5
+    item_count: 5,
   },
   {
     order_id: 8421,
     ordered_at: "2026-03-10T10:15:00Z",
-    total_cost: 124.50,
+    total_cost: 124.5,
     status: "delivered",
-    item_count: 12
+    item_count: 12,
   },
   {
     order_id: 8305,
     ordered_at: "2026-02-28T18:45:00Z",
-    total_cost: 32.10,
+    total_cost: 32.1,
     status: "cancelled",
-    item_count: 3
+    item_count: 3,
   },
   {
     order_id: 8210,
     ordered_at: "2026-02-14T09:00:00Z",
     total_cost: 88.75,
     status: "delivered",
-    item_count: 8
-  }
+    item_count: 8,
+  },
 ];
 
 export default function OrderHistoryPage() {
@@ -48,7 +48,9 @@ export default function OrderHistoryPage() {
       <div className="max-w-5xl mx-auto px-8 pt-32">
         {/* Header */}
         <div className="mb-12">
-          <p className="text-sage text-xs font-medium tracking-[0.14em] uppercase mb-2">Account</p>
+          <p className="text-sage text-xs font-medium tracking-[0.14em] uppercase mb-2">
+            Account
+          </p>
           <h1 className="font-playfair text-4xl md:text-5xl text-forest">
             Order <em className="text-clay">History</em>
           </h1>
@@ -65,8 +67,13 @@ export default function OrderHistoryPage() {
 
           {DUMMY_ORDERS.length === 0 && (
             <div className="text-center py-20 bg-white/40 rounded-3xl border border-dashed border-forest/10">
-              <p className="font-playfair text-xl text-forest/40">No orders yet.</p>
-              <Link href="/user/browse" className="text-sage text-sm underline mt-2 inline-block">
+              <p className="font-playfair text-xl text-forest/40">
+                No orders yet.
+              </p>
+              <Link
+                href="/user/browse"
+                className="text-sage text-sm underline mt-2 inline-block"
+              >
                 Start shopping
               </Link>
             </div>
