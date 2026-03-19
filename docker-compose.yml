@@ -19,7 +19,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/delivery_db
     depends_on:
-      - db
+      db:
+        condition: "service_healthy"
 
   # PostgreSQL Database
   db:
@@ -32,6 +33,13 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # This command runs inside the DB container to see if it's accepting connections
+      test: ["CMD-SHELL", "pg_isready -U user -d delivery_db"]
+      interval: 5s    # Check every 5 seconds
+      timeout: 5s     # If the check takes > 5s, it's a fail
+      retries: 5      # Try 5 times before giving up
+      start_period: 10s # Give it 10s to boot before starting checks
 
 volumes:
   postgres_data:
