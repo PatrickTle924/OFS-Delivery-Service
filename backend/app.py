@@ -24,6 +24,9 @@ with app.app_context():
 def get_orders():
     orders = Order.query.all()
     return jsonify([{"id": o.id, "customerName": o.customer_name, "status": o.status} for o in orders])
+ checkout-page
+    
+
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -85,3 +88,4 @@ with app.app_context():
 # for local development without Docker
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+ main
