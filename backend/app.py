@@ -1,6 +1,6 @@
 # flask file
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
@@ -18,3 +18,4 @@ class Order(db.Model):
 def get_orders():
     orders = Order.query.all()
     return jsonify([{"id": o.id, "customerName": o.customer_name, "status": o.status} for o in orders])
+    
