@@ -6,12 +6,12 @@ from flask_cors import CORS
 import uuid
 import enum
 from sqlalchemy import Enum
-from models import User, UserRole, CustomerProfile, EmployeeProfile, Order
+from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Product
 from database import db
 
 app = Flask(__name__)
 CORS(app) # Allow Next.js to communicate with Flask
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://user:password@db:5432/delivery_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://user:password@localhost:5432/delivery_db'
 
 # Connect the db instance to our flask app
 db.init_app(app)
@@ -74,6 +74,40 @@ def login():
         
     return jsonify({"error": "Invalid credentials"}), 401
 
+@app.route('/inventory', methods=['GET'])
+def get_inventory():
+    products = Product.query.all()
+
+    return jsonify([
+        {
+            "id": str(product.product_id),
+            "name": product.name,
+            "sku": f"PROD-{product.product_id:03d}",
+            "category": (product.category or "").lower(),
+            "quantity": product.stock,
+            "weight": str(product.weight),
+            "price": product.cost,
+            "reorderLevel": 10,
+            "lastRestocked": (
+                product.updated_at.strftime("%Y-%m-%d")
+                if product.updated_at
+                else (
+                    product.created_at.strftime("%Y-%m-%d")
+                    if product.created_at
+                    else ""
+                )
+            ),
+        }
+        for product in products
+    ]), 200
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({
+        "status": "ok",
+        "message": "Backend is running"
+    }), 200
+
 # initial tables creation on startup
 with app.app_context():
     try:
@@ -84,4 +118,4 @@ with app.app_context():
 
 # for local development without Docker
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)

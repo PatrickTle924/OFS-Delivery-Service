@@ -32,108 +32,23 @@ export default function InventoryPage() {
   }, []);
 
   const fetchInventory = async () => {
-    try {
-      // placeholder, insert API endpoint to fetch inventory data
-      const response = await fetch("/api/inventory");
-      const data = await response.json();
-      setItems(data);
-    } catch (error) {
-      console.error("Failed to fetch inventory:", error);
-      // placeholder data for development
-      setItems([
-        {
-          id: "1",
-          name: "Organic Apples",
-          sku: "ORG-APPLE-001",
-          category: "fruits",
-          quantity: 45,
-          weight: "1 lb",
-          price: 4.99,
-          reorderLevel: 20,
-          lastRestocked: "2026-03-16",
-        },
-        {
-          id: "2",
-          name: "Fresh Spinach",
-          sku: "ORG-SPIN-002",
-          category: "vegetables",
-          quantity: 12,
-          weight: "5 oz",
-          price: 3.49,
-          reorderLevel: 15,
-          lastRestocked: "2026-03-18",
-        },
-        {
-          id: "3",
-          name: "Carrots Bundle",
-          sku: "ORG-CARR-003",
-          category: "vegetables",
-          quantity: 60,
-          weight: "2 lbs",
-          price: 2.99,
-          reorderLevel: 25,
-          lastRestocked: "2026-03-17",
-        },
-        {
-          id: "4",
-          name: "Organic Bananas",
-          sku: "ORG-BAN-004",
-          category: "fruits",
-          quantity: 35,
-          weight: "1.5 lbs",
-          price: 0.59,
-          reorderLevel: 30,
-          lastRestocked: "2026-03-15",
-        },
-        {
-          id: "5",
-          name: "Grass-Fed Beef",
-          sku: "ORG-BEEF-005",
-          category: "meat",
-          quantity: 8,
-          weight: "1 lb",
-          price: 12.99,
-          reorderLevel: 10,
-          lastRestocked: "2026-03-18",
-        },
-        {
-          id: "6",
-          name: "Organic Tomatoes",
-          sku: "ORG-TOM-006",
-          category: "produce",
-          quantity: 28,
-          weight: "1.5 lbs",
-          price: 3.99,
-          reorderLevel: 15,
-          lastRestocked: "2026-03-17",
-        },
-        {
-          id: "7",
-          name: "Free-Range Chicken",
-          sku: "ORG-CHICK-007",
-          category: "meat",
-          quantity: 5,
-          weight: "1.5 lbs",
-          price: 8.99,
-          reorderLevel: 8,
-          lastRestocked: "2026-03-16",
-        },
-        {
-          id: "8",
-          name: "Bell Peppers Mix",
-          sku: "ORG-BELL-008",
-          category: "vegetables",
-          quantity: 42,
-          weight: "2 lbs",
-          price: 4.49,
-          reorderLevel: 20,
-          lastRestocked: "2026-03-18",
-        },
-      ]);
-    } finally {
-      setLoading(false);
+  try {
+    const response = await fetch("http://localhost:5000/inventory");
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch inventory");
     }
-  };
+
+    const data = await response.json();
+    setItems(data);
+  } catch (error) {
+    console.error("Failed to fetch inventory:", error);
+    setItems([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleCategoryToggle = (category: string) => {
     setSelectedCategories((prev) =>
