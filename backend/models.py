@@ -90,6 +90,7 @@ class Product(db.Model):
     description = db.Column(db.Text)
     weight = db.Column(db.Float, nullable=False)
     cost = db.Column(db.Float, nullable=False)
+    image_url = db.Column(db.String(500))
     category = db.Column(db.String(100))
     stock = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

@@ -1,7 +1,3 @@
- checkout-page
-import Image from "next/image";
-import Link from "next/link";
-
 "use client";
 
 import Link from "next/link";
@@ -115,7 +111,6 @@ export default function HomePage() {
     e.preventDefault();
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
- main
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-cream relative">
@@ -266,7 +261,6 @@ export default function HomePage() {
             href="/login-register"
             className="inline-block bg-cream text-forest font-medium px-10 py-4 rounded-full hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-black/30 transition-all duration-200 text-base shadow-xl"
           >
- checkout-page
             Documentation
             <Link
               href="/checkout"
@@ -274,11 +268,7 @@ export default function HomePage() {
             >
             Go to Checkout
             </Link>
-          </a>
-
-            Get Started — It&apos;s Free
           </Link>
- main
         </div>
       </div>
 
