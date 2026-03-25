@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Order } from "@/types/routing";
-import { OrderCard } from "./RouteOrderCard";
+import { RouteOrderCard } from "./RouteOrderCard";
 import { Card } from "./Card";
 import { FaRoute } from "react-icons/fa6";
 
@@ -102,7 +102,7 @@ export function DeliveryRoutes({
         ) : (
           <div className="p-3 flex flex-col gap-2">
             {filtered.map((order) => (
-              <OrderCard
+              <RouteOrderCard
                 key={order.id}
                 order={{ ...order, selected: selectedIds.has(order.id) }}
                 onToggle={toggleOrder}

@@ -1,7 +1,7 @@
 "use client";
 
 import Navbar from "@/components/Navbar";
-import OrderCard, { OrderData } from "@/components/RouteOrderCard";
+import OrderCard, { OrderData } from "@/components/OrderCard";
 import Link from "next/link";
 
 //dummy data just to display stuff
