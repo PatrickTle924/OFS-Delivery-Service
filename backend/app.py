@@ -13,7 +13,10 @@ from database import db
 
 app = Flask(__name__)
 CORS(app) # Allow Next.js to communicate with Flask
+
+# kept main 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:password@db:5432/delivery_db')
+
 
 # Connect the db instance to our flask app
 db.init_app(app)
@@ -283,6 +286,83 @@ def login():
         return jsonify({"message": "Login successful", "user": user.first_name}), 200
         
     return jsonify({"error": "Invalid credentials"}), 401
+
+@app.route('/inventory', methods=['GET'])
+def get_inventory():
+    products = Product.query.all()
+
+    return jsonify([
+        {
+            "id": str(product.product_id),
+            "name": product.name,
+            "sku": f"PROD-{product.product_id:03d}",
+            "category": (product.category or "").lower(),
+            "quantity": product.stock,
+            "weight": str(product.weight),
+            "price": product.cost,
+            "reorderLevel": 10,
+            "lastRestocked": (
+                product.updated_at.strftime("%Y-%m-%d")
+                if product.updated_at
+                else (
+                    product.created_at.strftime("%Y-%m-%d")
+                    if product.created_at
+                    else ""
+                )
+            ),
+        }
+        for product in products
+    ]), 200
+
+
+@app.route('/products/<int:product_id>', methods=['PUT'])
+def update_product(product_id):
+    product = Product.query.get(product_id)
+
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+
+    data = request.get_json()
+
+    product.name = data.get("name", product.name)
+    product.description = data.get("description", product.description)
+    product.weight = float(data.get("weight", product.weight))
+    product.cost = float(data.get("price", product.cost))
+    product.category = data.get("category", product.category)
+    product.stock = int(data.get("quantity", product.stock))
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Product updated successfully",
+        "product": {
+            "id": str(product.product_id),
+            "name": product.name,
+            "sku": f"PROD-{product.product_id:03d}",
+            "category": (product.category or "").lower(),
+            "quantity": product.stock,
+            "weight": str(product.weight),
+            "price": product.cost,
+            "reorderLevel": 10,
+            "lastRestocked": (
+                product.updated_at.strftime("%Y-%m-%d")
+                if product.updated_at
+                else (
+                    product.created_at.strftime("%Y-%m-%d")
+                    if product.created_at
+                    else ""
+                )
+            ),
+        }
+    }), 200
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({
+        "status": "ok",
+        "message": "Backend is running"
+    }), 200
+
 
 # for local development without Docker
 if __name__ == '__main__':
