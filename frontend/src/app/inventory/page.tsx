@@ -93,33 +93,44 @@ export default function InventoryPage() {
     }));
   };
 
-  const handleSaveItem = () => {
-    if (!formData.name || !formData.sku) {
-      alert("Please fill in all required fields");
-      return;
-    }
+  const handleSaveItem = async () => {
+  if (!formData.name) {
+    alert("Please fill in all required fields");
+    return;
+  }
 
+  try {
     if (editingItem) {
-      // Edit existing item
-      setItems(items.map((item) => (item.id === editingItem.id ? { ...formData as InventoryItem } : item)));
+      const response = await fetch(`http://localhost:5000/products/${editingItem.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          description: "",
+          category: formData.category,
+          quantity: formData.quantity,
+          weight: formData.weight,
+          price: formData.price,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update product");
+      }
+
+      await fetchInventory();
     } else {
-      // Add new item
-      const newItem: InventoryItem = {
-        id: Date.now().toString(),
-        name: formData.name || "",
-        sku: formData.sku || "",
-        category: formData.category || "fruits",
-        quantity: formData.quantity || 0,
-        weight: formData.weight || "",
-        price: formData.price || 0,
-        reorderLevel: formData.reorderLevel || 0,
-        lastRestocked: formData.lastRestocked || new Date().toISOString().split("T")[0],
-      };
-      setItems([...items, newItem]);
+      alert("Add item is still frontend-only right now.");
     }
 
     handleCloseModal();
-  };
+  } catch (error) {
+    console.error("Failed to save item:", error);
+    alert("Failed to save item");
+  }
+};
 
   const handleDeleteItem = (id: string) => {
     if (confirm("Are you sure you want to delete this item?")) {

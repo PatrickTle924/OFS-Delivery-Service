@@ -101,6 +101,48 @@ def get_inventory():
         for product in products
     ]), 200
 
+
+@app.route('/products/<int:product_id>', methods=['PUT'])
+def update_product(product_id):
+    product = Product.query.get(product_id)
+
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+
+    data = request.get_json()
+
+    product.name = data.get("name", product.name)
+    product.description = data.get("description", product.description)
+    product.weight = float(data.get("weight", product.weight))
+    product.cost = float(data.get("price", product.cost))
+    product.category = data.get("category", product.category)
+    product.stock = int(data.get("quantity", product.stock))
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Product updated successfully",
+        "product": {
+            "id": str(product.product_id),
+            "name": product.name,
+            "sku": f"PROD-{product.product_id:03d}",
+            "category": (product.category or "").lower(),
+            "quantity": product.stock,
+            "weight": str(product.weight),
+            "price": product.cost,
+            "reorderLevel": 10,
+            "lastRestocked": (
+                product.updated_at.strftime("%Y-%m-%d")
+                if product.updated_at
+                else (
+                    product.created_at.strftime("%Y-%m-%d")
+                    if product.created_at
+                    else ""
+                )
+            ),
+        }
+    }), 200
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
