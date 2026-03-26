@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Order } from "@/types/routing";
 import { RouteOrderCard } from "./RouteOrderCard";
 import { Card } from "./Card";
@@ -8,7 +8,7 @@ import { FaRoute } from "react-icons/fa6";
 
 interface DeliveryRoutesProps {
   orders: Order[];
-  onGenerateRoutes: (selectedIds: string[]) => void;
+  onGenerateRoutes: (selectedIds: number[]) => void;
 }
 
 export function DeliveryRoutes({
@@ -16,15 +16,20 @@ export function DeliveryRoutes({
   onGenerateRoutes,
 }: DeliveryRoutesProps) {
   const [search, setSearch] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const filtered = orders.filter(
-    (o) =>
-      o.id.toLowerCase().includes(search.toLowerCase()) ||
-      o.address.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = useMemo(() => {
+    const query = search.toLowerCase().trim();
 
-  const toggleOrder = (id: string) => {
+    return orders.filter((o) => {
+      const label = (o.label ?? `Order #${o.id}`).toLowerCase();
+      const address = o.address.toLowerCase();
+
+      return label.includes(query) || address.includes(query);
+    });
+  }, [orders, search]);
+
+  const toggleOrder = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -89,7 +94,7 @@ export function DeliveryRoutes({
       </div>
 
       <div
-        className="flex-1 overflow-y-auto "
+        className="flex-1 overflow-y-auto"
         style={{ background: "var(--color-cream)" }}
       >
         {filtered.length === 0 ? (
@@ -104,7 +109,8 @@ export function DeliveryRoutes({
             {filtered.map((order) => (
               <RouteOrderCard
                 key={order.id}
-                order={{ ...order, selected: selectedIds.has(order.id) }}
+                order={order}
+                selected={selectedIds.has(order.id)}
                 onToggle={toggleOrder}
               />
             ))}
@@ -157,6 +163,7 @@ export function DeliveryRoutes({
             </p>
           </div>
         </div>
+
         <button
           onClick={() => onGenerateRoutes([...selectedIds])}
           disabled={selectedIds.size === 0}

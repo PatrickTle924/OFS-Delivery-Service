@@ -1,10 +1,16 @@
 export interface Order {
-  id: string;
+  id: number;
+  label: string;
   weight: number;
   address: string;
-  time: string;
+  city?: string;
+  state?: string;
+  zip?: string;
   price: number;
-  selected?: boolean;
+  lat: number;
+  lng: number;
+  status: string;
+  orderedAt?: string | null;
 }
 
 export interface RouteStop {
@@ -21,10 +27,21 @@ export interface RouteOption {
   stops: RouteStop[];
 }
 
+export interface ActiveDeliveryPoint {
+  lng: number;
+  lat: number;
+  label: string;
+}
+
+export interface ActiveDeliveryLine {
+  from: number;
+  to: number;
+}
+
 export interface ActiveDelivery {
   tripId: string;
   robotId: string;
   eta: number;
-  mapPoints: { x: number; y: number; label: string }[];
-  mapLines: { from: number; to: number }[];
+  mapPoints: ActiveDeliveryPoint[];
+  mapLines: ActiveDeliveryLine[];
 }

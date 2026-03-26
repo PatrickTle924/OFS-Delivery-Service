@@ -13,36 +13,72 @@ export interface AuthResponse {
   token?: string; // add JWT logic later
 }
 
-//order services
-export const fetchOrders = async (): Promise<Order[]> => {
-  const response = await fetch(`${API_BASE_URL}/orders`);
-  if (!response.ok) throw new Error('Failed to fetch orders');
-  return response.json();
-};
-
 // auth services
 export const registerUser = async (data: RegisterInput) => {
   const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || 'Registration failed');
+    throw new Error(error.error || "Registration failed");
   }
 
   return response.json();
 };
 
-//new func to allow users to log in
-export const loginUser = async (credentials: LoginInput) => {
-  const res = await fetch(`${API_BASE_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+export async function loginUser(credentials: {
+  email: string;
+  password: string;
+}) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(credentials),
   });
-  if (!res.ok) throw new Error("Invalid credentials");
-  return res.json();
-};
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Login failed");
+  }
+
+  return data;
+}
+
+export async function fetchOrders() {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/orders`);
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to fetch orders");
+  }
+
+  return data;
+}
+
+export async function optimizeRoutes(orderIds: number[]) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/optimize-routes`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ orderIds }),
+    },
+  );
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to optimize routes");
+  }
+
+  return data;
+}

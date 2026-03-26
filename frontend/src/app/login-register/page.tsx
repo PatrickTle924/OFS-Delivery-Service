@@ -16,7 +16,7 @@ interface FormState {
   lastName: string;
   phone: string;
   address: string;
-  employeeId: string;
+  employeeCode: string;
 }
 
 const INITIAL_FORM: FormState = {
@@ -27,7 +27,7 @@ const INITIAL_FORM: FormState = {
   lastName: "",
   phone: "",
   address: "",
-  employeeId: "",
+  employeeCode: "",
 };
 
 const PERKS: string[] = [
@@ -47,10 +47,20 @@ interface FieldProps {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-function Field({ label, name, type, placeholder, value, onChange }: FieldProps) {
+function Field({
+  label,
+  name,
+  type,
+  placeholder,
+  value,
+  onChange,
+}: FieldProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={name} className="text-xs font-medium text-[#444] tracking-wide">
+      <label
+        htmlFor={name}
+        className="text-xs font-medium text-[#444] tracking-wide"
+      >
         {label}
       </label>
       <input
@@ -99,15 +109,24 @@ export default function LoginRegisterPage() {
           role,
           ...(role === "customer"
             ? { deliveryAddress: form.address }
-            : { employeeId: form.employeeId }),
+            : { employeeCode: form.employeeCode }),
         } as any);
 
         setMode("login");
         setForm(INITIAL_FORM);
         setError("Registration successful! Please sign in.");
       } else {
-        await loginUser({ email: form.email, password: form.password });
-        router.push("/user/browse");
+        const data = await loginUser({
+          email: form.email,
+          password: form.password,
+        });
+        const role = data.user.role;
+
+        if (role === "employee") {
+          router.push("/routing");
+        } else {
+          router.push("/user/browse");
+        }
       }
     } catch (err: any) {
       setError(err.message || "An error occurred. Please try again.");
@@ -124,12 +143,10 @@ export default function LoginRegisterPage() {
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 font-dm">
-
       {/* ══════════════════════════════
           LEFT PANEL
       ══════════════════════════════ */}
       <div className="hidden md:flex flex-col justify-between px-12 py-10 relative overflow-hidden bg-forest">
-
         {/* Layered radial gradients */}
         <div className="absolute top-[-15%] right-[-10%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.22)_0%,transparent_65%)] pointer-events-none" />
         <div className="absolute top-[35%] left-[-20%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(74,124,89,0.30)_0%,transparent_65%)] pointer-events-none" />
@@ -137,7 +154,10 @@ export default function LoginRegisterPage() {
         <div className="absolute bottom-[-5%] left-[-5%] w-[300px] h-[300px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.12)_0%,transparent_65%)] pointer-events-none" />
 
         {/* Logo */}
-        <Link href="/" className="font-playfair text-2xl text-cream tracking-tight relative z-10">
+        <Link
+          href="/"
+          className="font-playfair text-2xl text-cream tracking-tight relative z-10"
+        >
           OFS<span className="text-mint italic">.</span>
         </Link>
 
@@ -145,7 +165,8 @@ export default function LoginRegisterPage() {
         <div className="relative z-10">
           <h2 className="font-playfair text-5xl text-cream leading-[1.15] mb-5">
             Eat <em className="text-mint not-italic italic">fresh</em>,
-            <br />live better.
+            <br />
+            live better.
           </h2>
           <p className="text-cream/55 font-light leading-relaxed max-w-xs mb-10 text-base">
             Order organic groceries from San Jose&apos;s favourite local food
@@ -153,7 +174,10 @@ export default function LoginRegisterPage() {
           </p>
           <ul className="flex flex-col gap-3.5">
             {PERKS.map((perk) => (
-              <li key={perk} className="flex items-center gap-3 text-cream/75 text-sm font-light">
+              <li
+                key={perk}
+                className="flex items-center gap-3 text-cream/75 text-sm font-light"
+              >
                 <span className="w-1.5 h-1.5 rounded-full bg-mint flex-shrink-0" />
                 {perk}
               </li>
@@ -161,21 +185,21 @@ export default function LoginRegisterPage() {
           </ul>
         </div>
 
-        <p className="text-cream/25 text-xs relative z-10">© 2025 OFS — San Jose, CA</p>
+        <p className="text-cream/25 text-xs relative z-10">
+          © 2025 OFS — San Jose, CA
+        </p>
       </div>
 
       {/* ══════════════════════════════
           RIGHT PANEL
       ══════════════════════════════ */}
       <div className="flex items-center justify-center px-6 py-12 md:px-12 bg-cream relative overflow-hidden">
-
         {/* Right-panel radial gradients */}
         <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.25)_0%,transparent_65%)] pointer-events-none" />
         <div className="absolute bottom-[-15%] right-[-10%] w-[450px] h-[450px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.12)_0%,transparent_65%)] pointer-events-none" />
         <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(74,124,89,0.06)_0%,transparent_70%)] pointer-events-none" />
 
         <div className="w-full max-w-[400px] relative z-10">
-
           {/* Header */}
           <div className="mb-8">
             <h3 className="font-playfair text-3xl text-forest mb-1.5">
@@ -208,10 +232,10 @@ export default function LoginRegisterPage() {
           {/* Role selector — register only */}
           {mode === "register" && (
             <div className="flex gap-3 mb-6">
-              {([
+              {[
                 { value: "customer" as Role, label: "Customer" },
                 { value: "employee" as Role, label: "Employee" },
-              ]).map((r) => (
+              ].map((r) => (
                 <button
                   key={r.value}
                   onClick={() => setRole(r.value)}
@@ -229,11 +253,13 @@ export default function LoginRegisterPage() {
 
           {/* Error / success message */}
           {error && (
-            <div className={`text-xs px-4 py-3 rounded-xl mb-5 font-medium ${
-              error.startsWith("Registration successful")
-                ? "bg-mint/20 text-sage border border-mint/40"
-                : "bg-[#fdeaea] text-[#b94040] border border-[#f5c0c0]"
-            }`}>
+            <div
+              className={`text-xs px-4 py-3 rounded-xl mb-5 font-medium ${
+                error.startsWith("Registration successful")
+                  ? "bg-mint/20 text-sage border border-mint/40"
+                  : "bg-[#fdeaea] text-[#b94040] border border-[#f5c0c0]"
+              }`}
+            >
               {error}
             </div>
           )}
@@ -242,36 +268,89 @@ export default function LoginRegisterPage() {
           <div className="flex flex-col gap-4 mb-5">
             {mode === "register" && (
               <div className="grid grid-cols-2 gap-3">
-                <Field label="First Name" name="firstName" type="text" placeholder="Jane"  value={form.firstName} onChange={handleChange} />
-                <Field label="Last Name"  name="lastName"  type="text" placeholder="Doe"   value={form.lastName}  onChange={handleChange} />
+                <Field
+                  label="First Name"
+                  name="firstName"
+                  type="text"
+                  placeholder="Jane"
+                  value={form.firstName}
+                  onChange={handleChange}
+                />
+                <Field
+                  label="Last Name"
+                  name="lastName"
+                  type="text"
+                  placeholder="Doe"
+                  value={form.lastName}
+                  onChange={handleChange}
+                />
               </div>
             )}
 
-            <Field label="Email Address" name="email" type="email" placeholder="you@example.com" value={form.email} onChange={handleChange} />
+            <Field
+              label="Email Address"
+              name="email"
+              type="email"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={handleChange}
+            />
 
             {mode === "register" && (
-              <Field label="Phone Number" name="phone" type="tel" placeholder="+1 (408) 555-0100" value={form.phone} onChange={handleChange} />
+              <Field
+                label="Phone Number"
+                name="phone"
+                type="tel"
+                placeholder="+1 (408) 555-0100"
+                value={form.phone}
+                onChange={handleChange}
+              />
             )}
 
             {mode === "register" && role === "customer" && (
-              <Field label="Delivery Address" name="address" type="text" placeholder="123 Main St, San Jose, CA" value={form.address} onChange={handleChange} />
+              <Field
+                label="Delivery Address"
+                name="address"
+                type="text"
+                placeholder="123 Main St, San Jose, CA"
+                value={form.address}
+                onChange={handleChange}
+              />
             )}
 
             {mode === "register" && role === "employee" && (
-              <Field label="Employee ID" name="employeeId" type="text" placeholder="EMP-12345" value={form.employeeId} onChange={handleChange} />
+              <Field
+                label="Employee Code"
+                name="employeeCode"
+                type="text"
+                placeholder="EMP-12345"
+                value={form.employeeCode}
+                onChange={handleChange}
+              />
             )}
 
             <Field
               label="Password"
               name="password"
               type="password"
-              placeholder={mode === "register" ? "Min. 10 characters" : "Enter your password"}
+              placeholder={
+                mode === "register"
+                  ? "Min. 10 characters"
+                  : "Enter your password"
+              }
               value={form.password}
               onChange={handleChange}
             />
 
             {mode === "register" && (
-              <Field label="Confirm Password" name="confirmPassword" type="password" placeholder="Repeat password" value={form.confirmPassword} onChange={handleChange} />
+              <Field
+                label="Confirm Password"
+                name="confirmPassword"
+                type="password"
+                placeholder="Repeat password"
+                value={form.confirmPassword}
+                onChange={handleChange}
+              />
             )}
           </div>
 
@@ -283,7 +362,9 @@ export default function LoginRegisterPage() {
           >
             {loading
               ? "Processing..."
-              : mode === "login" ? "Sign In →" : "Create Account →"}
+              : mode === "login"
+                ? "Sign In →"
+                : "Create Account →"}
           </button>
 
           {/* Divider */}
@@ -298,14 +379,20 @@ export default function LoginRegisterPage() {
             {mode === "login" ? (
               <>
                 Don&apos;t have an account?{" "}
-                <button onClick={() => switchMode("register")} className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors">
+                <button
+                  onClick={() => switchMode("register")}
+                  className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
+                >
                   Register now
                 </button>
               </>
             ) : (
               <>
                 Already have an account?{" "}
-                <button onClick={() => switchMode("login")} className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors">
+                <button
+                  onClick={() => switchMode("login")}
+                  className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
+                >
                   Sign in
                 </button>
               </>
@@ -313,7 +400,10 @@ export default function LoginRegisterPage() {
           </p>
 
           <p className="text-center mt-5">
-            <Link href="/" className="text-xs text-[#aaa] hover:text-sage transition-colors">
+            <Link
+              href="/"
+              className="text-xs text-[#aaa] hover:text-sage transition-colors"
+            >
               ← Back to homepage
             </Link>
           </p>
