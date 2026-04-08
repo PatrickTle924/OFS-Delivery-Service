@@ -32,7 +32,12 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
   const outOfStock = product.stock === 0;
-  const catStyle = CATEGORY_STYLES[product.category];
+  //const catStyle = CATEGORY_STYLES[product.category];
+  const catStyle = CATEGORY_STYLES[product.category as keyof typeof CATEGORY_STYLES] ?? {
+    bg: "bg-gray-100",
+    text: "text-gray-600",
+    dot: "bg-gray-400",
+  };
 
   return (
     <div className="group bg-white/80 backdrop-blur-sm rounded-2xl border border-white/90 shadow-sm hover:shadow-xl hover:shadow-forest/10 hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col">
