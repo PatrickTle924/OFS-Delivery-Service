@@ -1,21 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-
-// ── Types ──────────────────────────────────────────────────────────
-type OrderStatus = "pending" | "out_for_delivery" | "delivered" | "cancelled";
-
-interface Order {
-  id: string;
-  placedAt: string;
-  status: OrderStatus;
-  items: { name: string; quantity: number; price: number }[];
-  totalPrice: number;
-  totalWeight: number;
-  deliveryFee: number;
-}
+import { changePassword, fetchUserProfile } from "@/lib/api-service";
 
 interface UserProfile {
   firstName: string;
@@ -26,78 +15,25 @@ interface UserProfile {
   createdAt: string;
 }
 
-type ActiveTab = "profile" | "orders";
+interface PasswordForm {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
 
-// ── Mock data (replace with GET /api/profile and GET /api/orders) ──
-const MOCK_USER: UserProfile = {
-  firstName: "Sukhjot",
-  lastName: "Singh",
-  email: "sukhjot@example.com",
-  phone: "+1 (408) 555-0192",
-  address: "123 Main St, San Jose, CA 95101",
-  createdAt: "January 2025",
+const EMPTY_PROFILE: UserProfile = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  address: "",
+  createdAt: "",
 };
 
-const MOCK_ORDERS: Order[] = [
-  {
-    id: "ORD-0041",
-    placedAt: "March 14, 2025",
-    status: "delivered",
-    items: [
-      { name: "Organic Fuji Apples", quantity: 2, price: 4.99 },
-      { name: "Baby Spinach", quantity: 1, price: 2.99 },
-      { name: "Sourdough Loaf", quantity: 1, price: 7.49 },
-    ],
-    totalPrice: 20.46,
-    totalWeight: 6.25,
-    deliveryFee: 0,
-  },
-  {
-    id: "ORD-0038",
-    placedAt: "March 9, 2025",
-    status: "delivered",
-    items: [
-      { name: "Grass-Fed Ground Beef", quantity: 1, price: 13.49 },
-      { name: "Organic Whole Milk", quantity: 1, price: 5.29 },
-      { name: "Aged Cheddar", quantity: 2, price: 6.99 },
-    ],
-    totalPrice: 32.76,
-    totalWeight: 13.6,
-    deliveryFee: 0,
-  },
-  {
-    id: "ORD-0031",
-    placedAt: "February 28, 2025",
-    status: "delivered",
-    items: [
-      { name: "Wild Salmon Fillet", quantity: 2, price: 16.99 },
-      { name: "Extra Virgin Olive Oil", quantity: 1, price: 12.99 },
-      { name: "Organic Brown Rice", quantity: 2, price: 3.99 },
-    ],
-    totalPrice: 54.95,
-    totalWeight: 13.5,
-    deliveryFee: 0,
-  },
-  {
-    id: "ORD-0028",
-    placedAt: "February 20, 2025",
-    status: "out_for_delivery",
-    items: [
-      { name: "Greek Yogurt", quantity: 3, price: 4.49 },
-      { name: "Fresh Blueberries", quantity: 2, price: 5.49 },
-    ],
-    totalPrice: 24.45,
-    totalWeight: 7.5,
-    deliveryFee: 0,
-  },
-];
-
-// ── Status config ──────────────────────────────────────────────────
-const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; dot: string }> = {
-  pending:          { label: "Processing",       bg: "bg-[#fdf6e8]", text: "text-[#a0782a]", dot: "bg-[#a0782a]" },
-  out_for_delivery: { label: "Out for Delivery", bg: "bg-[#eef4fb]", text: "text-[#3a6fa8]", dot: "bg-[#3a6fa8]" },
-  delivered:        { label: "Delivered",        bg: "bg-[#edf7f0]", text: "text-sage",       dot: "bg-sage" },
-  cancelled:        { label: "Cancelled",        bg: "bg-[#fdeaea]", text: "text-[#b94040]",  dot: "bg-[#b94040]" },
+const EMPTY_PASSWORD_FORM: PasswordForm = {
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
 };
 
 // ── Icons ──────────────────────────────────────────────────────────
@@ -129,14 +65,6 @@ const IconUser = () => (
   </svg>
 );
 
-const IconOrders = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-    <polyline points="21 8 21 21 3 21 3 8"/>
-    <rect x="1" y="3" width="22" height="5" rx="1"/>
-    <line x1="10" y1="12" x2="14" y2="12"/>
-  </svg>
-);
-
 const IconLocation = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
     <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
@@ -163,13 +91,6 @@ const IconCalendar = () => (
     <line x1="16" y1="2" x2="16" y2="6"/>
     <line x1="8" y1="2" x2="8" y2="6"/>
     <line x1="3" y1="10" x2="21" y2="10"/>
-  </svg>
-);
-
-const IconTrack = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
   </svg>
 );
 
@@ -208,13 +129,68 @@ function EditField({ label, value, name, type = "text", icon, editing, onChange 
 
 // ── Page ──────────────────────────────────────────────────────────
 export default function ProfilePage() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("profile");
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [profile, setProfile] = useState<UserProfile>(MOCK_USER);
-  const [draft, setDraft] = useState<UserProfile>(MOCK_USER);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
+  const [draft, setDraft] = useState<UserProfile>(EMPTY_PROFILE);
+  const [passwordForm, setPasswordForm] = useState<PasswordForm>(EMPTY_PASSWORD_FORM);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const storedUser = window.localStorage.getItem("ofsUser");
+
+        if (!storedUser) {
+          throw new Error("Please sign in to view your profile.");
+        }
+
+        const parsedUser = JSON.parse(storedUser) as { email?: string };
+
+        if (!parsedUser.email) {
+          throw new Error("We couldn't determine which profile to load.");
+        }
+
+        const userProfile = await fetchUserProfile(parsedUser.email);
+        const formattedProfile = {
+          firstName: userProfile.firstName,
+          lastName: userProfile.lastName,
+          email: userProfile.email,
+          phone: userProfile.phone,
+          address: userProfile.address,
+          createdAt: userProfile.createdAt
+            ? new Date(userProfile.createdAt).toLocaleDateString("en-US", {
+                month: "long",
+                year: "numeric",
+              })
+            : "",
+        };
+
+        setProfile(formattedProfile);
+        setDraft(formattedProfile);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load profile.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDraft((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPasswordForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setPasswordError(null);
+    setPasswordSuccess(null);
   };
 
   const handleSave = () => {
@@ -228,12 +204,69 @@ export default function ProfilePage() {
     setEditing(false);
   };
 
-  const initials = `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
+  const handlePasswordCancel = () => {
+    setChangingPassword(false);
+    setPasswordForm(EMPTY_PASSWORD_FORM);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+  };
+
+  const handlePasswordSave = async () => {
+    try {
+      setPasswordError(null);
+      setPasswordSuccess(null);
+
+      if (!profile.email) {
+        throw new Error("We couldn't determine which account to update.");
+      }
+
+      if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+        throw new Error("Please fill out all password fields.");
+      }
+
+      if (passwordForm.newPassword.length < 8) {
+        throw new Error("New password must be at least 8 characters.");
+      }
+
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        throw new Error("New passwords do not match.");
+      }
+
+      if (passwordForm.currentPassword === passwordForm.newPassword) {
+        throw new Error("Choose a new password different from your current password.");
+      }
+
+      setPasswordSaving(true);
+      const response = await changePassword({
+        email: profile.email,
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+
+      setPasswordSuccess(response.message);
+      setChangingPassword(false);
+      setPasswordForm(EMPTY_PASSWORD_FORM);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Failed to change password.");
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("ofsUser");
+      window.dispatchEvent(new Event("ofs-auth-changed"));
+    }
+
+    router.push("/login-register");
+  };
+
+  const initials = `${profile.firstName[0] ?? ""}${profile.lastName[0] ?? ""}`.toUpperCase() || "U";
 
   return (
     <div className="min-h-screen bg-cream font-dm relative">
 
-      {/* Background gradients */}
       <div className="pointer-events-none fixed top-[-10%] left-[-10%] w-150 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.18)_0%,transparent_65%)] -z-10" />
       <div className="pointer-events-none fixed bottom-[-10%] right-[-10%] w-150 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.10)_0%,transparent_65%)] -z-10" />
       <div className="pointer-events-none fixed top-[40%] right-[20%] w-100 h-100 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(74,124,89,0.06)_0%,transparent_65%)] -z-10" />
@@ -242,9 +275,7 @@ export default function ProfilePage() {
 
       <div className="max-w-4xl mx-auto px-8 pt-28 pb-16">
 
-        {/* ── Profile hero card ── */}
         <div className="relative bg-forest rounded-3xl px-8 py-10 mb-8 overflow-hidden">
-          {/* Gradients inside card */}
           <div className="absolute top-0 right-0 w-72 h-72 rounded-full bg-[radial-gradient(ellipse_at_top_right,rgba(168,213,181,0.18)_0%,transparent_65%)] pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-60 h-60 rounded-full bg-[radial-gradient(ellipse_at_bottom_left,rgba(196,133,90,0.12)_0%,transparent_65%)] pointer-events-none" />
 
@@ -274,31 +305,20 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* ── Tabs ── */}
-        <div className="flex gap-2 mb-8">
-          {([
-            { key: "profile" as ActiveTab, label: "My Profile", icon: <IconUser /> },
-            { key: "orders"  as ActiveTab, label: "Order History", icon: <IconOrders /> },
-          ]).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border-[1.5px] ${
-                activeTab === tab.key
-                  ? "bg-forest text-cream border-forest shadow-md shadow-forest/20"
-                  : "bg-white/70 text-forest/60 border-warm hover:border-sage/40 hover:text-forest"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {loading && (
+          <div className="bg-white/70 backdrop-blur-sm rounded-3xl border border-white/80 shadow-sm p-8 text-sm text-forest/60">
+            Loading your profile...
+          </div>
+        )}
 
-        {/* ════════════════════════════
-            PROFILE TAB
-        ════════════════════════════ */}
-        {activeTab === "profile" && (
+        {!loading && error && (
+          <div className="bg-[#fdeaea] rounded-3xl border border-[#f5c0c0] p-6 text-sm text-[#b94040]">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
           <div className="bg-white/70 backdrop-blur-sm rounded-3xl border border-white/80 shadow-sm p-8">
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -389,109 +409,89 @@ export default function ProfilePage() {
             {/* Danger zone */}
             <div>
               <h3 className="text-sm font-medium text-forest/60 mb-4">Account</h3>
+              {changingPassword && (
+                <div className="mb-5 rounded-2xl border border-warm bg-warm/20 p-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <EditField
+                      label="Current Password"
+                      name="currentPassword"
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      icon={<IconX />}
+                      editing
+                      onChange={handlePasswordChange}
+                    />
+                    <EditField
+                      label="New Password"
+                      name="newPassword"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      icon={<IconSave />}
+                      editing
+                      onChange={handlePasswordChange}
+                    />
+                    <EditField
+                      label="Confirm New Password"
+                      name="confirmPassword"
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      icon={<IconSave />}
+                      editing
+                      onChange={handlePasswordChange}
+                    />
+                  </div>
+
+                  {passwordError && (
+                    <p className="mt-3 text-sm text-[#b94040]">{passwordError}</p>
+                  )}
+
+                  {passwordSuccess && (
+                    <p className="mt-3 text-sm text-sage">{passwordSuccess}</p>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      onClick={handlePasswordCancel}
+                      className="text-xs font-medium text-forest/60 bg-white px-4 py-2 rounded-xl border border-warm hover:border-forest/20 transition-all duration-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handlePasswordSave}
+                      disabled={passwordSaving}
+                      className="text-xs font-medium text-cream bg-forest px-4 py-2 rounded-xl hover:bg-sage transition-all duration-200 disabled:opacity-60"
+                    >
+                      {passwordSaving ? "Updating..." : "Update Password"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!changingPassword && passwordSuccess && (
+                <p className="mb-4 text-sm text-sage">{passwordSuccess}</p>
+              )}
+
               <div className="flex flex-wrap gap-3">
-                <button className="text-xs font-medium text-forest/50 hover:text-forest border border-warm hover:border-forest/20 px-4 py-2 rounded-xl transition-all duration-200">
+                <button
+                  onClick={() => {
+                    setChangingPassword(true);
+                    setPasswordError(null);
+                    setPasswordSuccess(null);
+                  }}
+                  className="text-xs font-medium text-forest/50 hover:text-forest border border-warm hover:border-forest/20 px-4 py-2 rounded-xl transition-all duration-200"
+                >
                   Change Password
                 </button>
-                <button className="text-xs font-medium text-[#b94040] border border-[#f5c0c0] hover:bg-[#fdeaea] px-4 py-2 rounded-xl transition-all duration-200">
+                <button
+                  onClick={handleSignOut}
+                  className="text-xs font-medium text-[#b94040] border border-[#f5c0c0] hover:bg-[#fdeaea] px-4 py-2 rounded-xl transition-all duration-200"
+                >
                   Sign Out
                 </button>
               </div>
             </div>
           </div>
-        )}
-
-        {/* ════════════════════════════
-            ORDER HISTORY TAB
-        ════════════════════════════ */}
-        {activeTab === "orders" && (
-          <div className="flex flex-col gap-4">
-            {MOCK_ORDERS.length === 0 ? (
-              <div className="bg-white/70 rounded-3xl border border-white/80 p-16 text-center">
-                <p className="font-playfair text-2xl text-forest/40 mb-2">No orders yet</p>
-                <p className="text-sm text-forest/30 font-light mb-6">
-                  Your order history will appear here once you&apos;ve placed your first order.
-                </p>
-                <Link
-                  href="/user/browse"
-                  className="inline-block bg-forest text-cream text-sm font-medium px-6 py-3 rounded-full hover:bg-sage transition-colors duration-200"
-                >
-                  Start Shopping →
-                </Link>
-              </div>
-            ) : (
-              MOCK_ORDERS.map((order) => {
-                const status = STATUS_CONFIG[order.status];
-                return (
-                  <div
-                    key={order.id}
-                    className="bg-white/70 backdrop-blur-sm rounded-3xl border border-white/80 shadow-sm p-6 hover:shadow-md transition-shadow duration-200"
-                  >
-                    {/* Order header */}
-                    <div className="flex items-start justify-between gap-4 mb-5">
-                      <div>
-                        <div className="flex items-center gap-3 mb-1">
-                          <span className="font-playfair text-lg text-forest">{order.id}</span>
-                          <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}>
-                            <span className={`w-1 h-1 rounded-full ${status.dot} ${order.status === "out_for_delivery" ? "animate-pulse" : ""}`} />
-                            {status.label}
-                          </span>
-                        </div>
-                        <p className="text-xs text-forest/45 font-light flex items-center gap-1.5">
-                          <IconCalendar />
-                          {order.placedAt}
-                        </p>
-                      </div>
-
-                      {order.status === "out_for_delivery" && (
-                        <Link
-                          href={`/user/track?order=${order.id}`}
-                          className="flex items-center gap-1.5 text-xs font-medium text-[#3a6fa8] bg-[#eef4fb] hover:bg-[#ddeaf7] px-3.5 py-2 rounded-xl transition-colors duration-200 shrink-0"
-                        >
-                          <IconTrack />
-                          Track Order
-                        </Link>
-                      )}
-                    </div>
-
-                    {/* Order items */}
-                    <div className="flex flex-col gap-1.5 mb-5">
-                      {order.items.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between text-sm">
-                          <span className="text-forest/70 font-light">
-                            {item.name}
-                            <span className="text-forest/35 ml-1.5">× {item.quantity}</span>
-                          </span>
-                          <span className="text-forest/60 font-medium text-xs">
-                            ${(item.price * item.quantity).toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Order footer */}
-                    <div className="flex items-center justify-between pt-4 border-t border-warm/60">
-                      <div className="flex items-center gap-4 text-xs text-forest/40 font-light">
-                        <span>{order.totalWeight.toFixed(1)} lbs</span>
-                        <span>
-                          Delivery:{" "}
-                          <span className={order.deliveryFee === 0 ? "text-sage font-medium" : "text-forest"}>
-                            {order.deliveryFee === 0 ? "Free" : `$${order.deliveryFee.toFixed(2)}`}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] text-forest/35 font-light uppercase tracking-wide">Total</p>
-                        <p className="font-playfair text-xl text-forest">
-                          ${(order.totalPrice + order.deliveryFee).toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+          </>
         )}
       </div>
     </div>

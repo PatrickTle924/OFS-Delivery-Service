@@ -9,6 +9,13 @@ interface NavbarProps {
   onCartClick?: () => void;
 }
 
+interface StoredUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
 const IconCart = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
     <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
@@ -18,6 +25,7 @@ const IconCart = () => (
 
 export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartClick }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
+  const [user, setUser] = useState<StoredUser | null>(null);
 
   useEffect(() => {
     if (alwaysFrosted) return;
@@ -26,7 +34,48 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
     return () => window.removeEventListener("scroll", handleScroll);
   }, [alwaysFrosted]);
 
+  useEffect(() => {
+    const loadUser = () => {
+      try {
+        const storedUser = window.localStorage.getItem("ofsUser");
+        setUser(storedUser ? (JSON.parse(storedUser) as StoredUser) : null);
+      } catch {
+        setUser(null);
+      }
+    };
+
+    loadUser();
+    window.addEventListener("storage", loadUser);
+    window.addEventListener("ofs-auth-changed", loadUser);
+
+    return () => {
+      window.removeEventListener("storage", loadUser);
+      window.removeEventListener("ofs-auth-changed", loadUser);
+    };
+  }, []);
+
   const frosted = alwaysFrosted || scrolled;
+  const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "U";
+
+  const profileLink = user ? (
+    <Link
+      href="/user/profile"
+      aria-label="Open profile"
+      title={user.firstName ? `${user.firstName}'s profile` : "Open profile"}
+      className="flex items-center gap-3"
+    >
+      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-sage to-forest text-cream border-2 border-white/70 flex items-center justify-center shadow-md shadow-forest/15">
+        <span className="text-sm font-semibold tracking-wide">{initials}</span>
+      </div>
+    </Link>
+  ) : (
+    <Link
+      href="/login-register"
+      className="bg-forest text-cream text-sm font-medium px-5 py-2.5 rounded-full hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
+    >
+      Sign In
+    </Link>
+  );
 
   return (
     <nav
@@ -40,18 +89,21 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
 
       <div className="flex items-center gap-8">
         {onCartClick !== undefined ? (
-          <button
-            onClick={onCartClick}
-            className="relative flex items-center gap-2 bg-forest text-cream px-4 py-2.5 rounded-full text-sm font-medium hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
-          >
-            <IconCart />
-            <span>Cart</span>
-            {cartItemCount !== undefined && cartItemCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-clay text-cream text-[10px] font-bold flex items-center justify-center">
-                {cartItemCount}
-              </span>
-            )}
-          </button>
+          <>
+            <button
+              onClick={onCartClick}
+              className="relative flex items-center gap-2 bg-forest text-cream px-4 py-2.5 rounded-full text-sm font-medium hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
+            >
+              <IconCart />
+              <span>Cart</span>
+              {cartItemCount !== undefined && cartItemCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-clay text-cream text-[10px] font-bold flex items-center justify-center">
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
+            {profileLink}
+          </>
         ) : (
           <>
             <Link href="/#how-it-works" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
@@ -60,12 +112,7 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
             <Link href="/#features" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
               Features
             </Link>
-            <Link
-              href="/login-register"
-              className="bg-forest text-cream text-sm font-medium px-5 py-2.5 rounded-full hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
-            >
-              Sign In
-            </Link>
+            {profileLink}
           </>
         )}
       </div>

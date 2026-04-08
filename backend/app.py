@@ -6,6 +6,7 @@ from flask_cors import CORS
 import uuid
 import enum
 import os
+from datetime import timezone
 from sqlalchemy import text
 from sqlalchemy import Enum
 from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Product
@@ -200,6 +201,9 @@ def run_schema_migrations():
     db.session.execute(
         text("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url VARCHAR(500)")
     )
+    db.session.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP")
+    )
     db.session.commit()
 
 
@@ -265,10 +269,10 @@ def register():
     db.session.flush()
 
     # create + assign the actual profile
-    if requested_role == 'customer':
+    if requested_role == UserRole.CUSTOMER:
         profile = CustomerProfile(user_id=new_user.id, delivery_address=data.get('deliveryAddress', ''))
         db.session.add(profile)
-    elif requested_role == 'employee':
+    elif requested_role == UserRole.EMPLOYEE:
         profile = EmployeeProfile(user_id=new_user.id, employee_id=data.get('employeeId', ''))
         db.session.add(profile)
 
@@ -283,9 +287,72 @@ def login():
     
     if user and user.check_password(data['password']):
         # generate JWT here, eventually
-        return jsonify({"message": "Login successful", "user": user.first_name}), 200
+        return jsonify({
+            "message": "Login successful",
+            "user": {
+                "id": user.id,
+                "firstName": user.first_name,
+                "lastName": user.last_name,
+                "email": user.email,
+                "role": user.role.value,
+            }
+        }), 200
         
     return jsonify({"error": "Invalid credentials"}), 401
+
+
+@app.route('/change-password', methods=['POST'])
+def change_password():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    current_password = data.get('currentPassword') or ''
+    new_password = data.get('newPassword') or ''
+
+    if not email or not current_password or not new_password:
+        return jsonify({"error": "Email, current password, and new password are required"}), 400
+
+    if len(new_password) < 8:
+        return jsonify({"error": "New password must be at least 8 characters"}), 400
+
+    user = User.query.filter(db.func.lower(User.email) == email).first()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if not user.check_password(current_password):
+        return jsonify({"error": "Current password is incorrect"}), 401
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    return jsonify({"message": "Password updated successfully"}), 200
+
+
+@app.route('/profile', methods=['GET'])
+def get_profile():
+    email = request.args.get('email', '').strip().lower()
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    user = User.query.filter(db.func.lower(User.email) == email).first()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    customer_profile = user.customer_profile
+    created_at = user.created_at.astimezone(timezone.utc) if user.created_at else None
+
+    return jsonify({
+        "id": user.id,
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "email": user.email,
+        "phone": user.phone_number,
+        "address": customer_profile.delivery_address if customer_profile else "",
+        "createdAt": created_at.isoformat() if created_at else None,
+        "role": user.role.value,
+    }), 200
 
 @app.route('/inventory', methods=['GET'])
 def get_inventory():
