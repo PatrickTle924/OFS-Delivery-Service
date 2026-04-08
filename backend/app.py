@@ -356,6 +356,50 @@ def update_product(product_id):
         }
     }), 200
 
+@app.route("/products/<int:product_id>", methods=["DELETE"])
+def delete_product(product_id):
+    try:
+        product = Product.query.get(product_id)
+
+        if not product:
+            return jsonify({"error": "Product not found"}), 404
+
+        db.session.delete(product)
+        db.session.commit()
+
+        return jsonify({"message": "Product deleted successfully"}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/products", methods=["POST"])
+def create_product():
+    try:
+        data = request.get_json()
+
+        new_product = Product(
+            name=data.get("name"),
+            description=data.get("description", ""),
+            weight=float(data.get("weight", 0)),
+            cost=float(data.get("price", 0)),
+            category=data.get("category"),
+            stock=int(data.get("quantity", 0)),
+        )
+
+        db.session.add(new_product)
+        db.session.commit()
+
+        return jsonify({
+            "message": "Product created successfully",
+            "id": new_product.product_id
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+    
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({

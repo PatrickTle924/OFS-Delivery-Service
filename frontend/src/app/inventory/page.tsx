@@ -93,38 +93,81 @@ export default function InventoryPage() {
     }));
   };
 
-  const handleSaveItem = async () => {
+//   const handleSaveItem = async () => {
+//   if (!formData.name) {
+//     alert("Please fill in all required fields");
+//     return;
+//   }
+
+//   try {
+//     if (editingItem) {
+//       const response = await fetch(`http://localhost:5000/products/${editingItem.id}`, {
+//         method: "PUT",
+//         headers: {
+//           "Content-Type": "application/json",
+//         },
+//         body: JSON.stringify({
+//           name: formData.name,
+//           description: "",
+//           category: formData.category,
+//           quantity: formData.quantity,
+//           weight: formData.weight,
+//           price: formData.price,
+//         }),
+//       });
+
+//       if (!response.ok) {
+//         throw new Error("Failed to update product");
+//       }
+
+//       await fetchInventory();
+//     } else {
+//       alert("Add item is still frontend-only right now.");
+//     }
+
+//     handleCloseModal();
+//   } catch (error) {
+//     console.error("Failed to save item:", error);
+//     alert("Failed to save item");
+//   }
+// };
+
+
+const handleSaveItem = async () => {
   if (!formData.name) {
-    alert("Please fill in all required fields");
+    alert("Please fill in the product name");
     return;
   }
 
   try {
-    if (editingItem) {
-      const response = await fetch(`http://localhost:5000/products/${editingItem.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          description: "",
-          category: formData.category,
-          quantity: formData.quantity,
-          weight: formData.weight,
-          price: formData.price,
-        }),
-      });
+    const payload = {
+      name: formData.name,
+      description: "",
+      category: formData.category,
+      quantity: formData.quantity ?? 0,
+      weight: Number(formData.weight) || 0,
+      price: formData.price ?? 0,
+    };
 
-      if (!response.ok) {
-        throw new Error("Failed to update product");
-      }
+    const url = editingItem
+      ? `http://localhost:5000/products/${editingItem.id}`
+      : "http://localhost:5000/products";
 
-      await fetchInventory();
-    } else {
-      alert("Add item is still frontend-only right now.");
+    const method = editingItem ? "PUT" : "POST";
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(editingItem ? "Failed to update product" : "Failed to add product");
     }
 
+    await fetchInventory();
     handleCloseModal();
   } catch (error) {
     console.error("Failed to save item:", error);
@@ -132,11 +175,26 @@ export default function InventoryPage() {
   }
 };
 
-  const handleDeleteItem = (id: string) => {
-    if (confirm("Are you sure you want to delete this item?")) {
-      setItems(items.filter((item) => item.id !== id));
+
+  const handleDeleteItem = async (id: string) => {
+  const confirmed = confirm("Are you sure you want to delete this item?");
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`http://localhost:5000/products/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete product");
     }
-  };
+
+    await fetchInventory();
+  } catch (error) {
+    console.error("Failed to delete item:", error);
+    alert("Failed to delete item");
+  }
+};
 
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
