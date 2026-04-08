@@ -7,27 +7,20 @@ import { MdOutlineSocialDistance } from "react-icons/md";
 
 interface RouteOptionCardProps {
   route: RouteOption;
-  onViewMap: (routeId: number) => void;
   onApprove: (routeId: number) => void;
 }
 
-export function RouteOptionCard({
-  route,
-  onViewMap,
-  onApprove,
-}: RouteOptionCardProps) {
+export function RouteOptionCard({ route, onApprove }: RouteOptionCardProps) {
   return (
     <Card>
       <CardBody className="flex flex-col gap-4">
-        {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div>
-            <CardLabel>Route Option #{route.id}</CardLabel>
+            <CardLabel>Optimized Route</CardLabel>
             <CardTitle>{route.subtitle}</CardTitle>
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-2">
           <div
             className="rounded-xl px-3 py-2.5 flex items-center gap-2.5"
@@ -62,6 +55,7 @@ export function RouteOptionCard({
               </p>
             </div>
           </div>
+
           <div
             className="rounded-xl px-3 py-2.5 flex items-center gap-2.5"
             style={{
@@ -97,7 +91,6 @@ export function RouteOptionCard({
           </div>
         </div>
 
-        {/* Stops */}
         <ol className="space-y-2">
           {route.stops.map((stop, i) => (
             <li key={i} className="flex items-center gap-3 text-sm">
@@ -120,19 +113,7 @@ export function RouteOptionCard({
           ))}
         </ol>
 
-        {/* Actions */}
         <div className="flex gap-2 pt-1">
-          <button
-            onClick={() => onViewMap(route.id)}
-            className="flex-1 py-2.5 px-3 rounded-xl text-sm font-medium transition-all duration-200 border hover:bg-[var(--color-cream)]"
-            style={{
-              borderColor: "var(--color-warm)",
-              color: "var(--color-forest)",
-              background: "white",
-            }}
-          >
-            View on Map
-          </button>
           <button
             onClick={() => onApprove(route.id)}
             className="flex-1 py-2.5 px-3 rounded-xl text-sm font-medium text-[var(--color-cream)] transition-all duration-200 hover:opacity-90"

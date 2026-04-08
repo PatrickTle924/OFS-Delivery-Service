@@ -27,10 +27,38 @@ export interface RouteOption {
   stops: RouteStop[];
 }
 
+export interface RouteGeometry {
+  type: "LineString";
+  coordinates: number[][];
+}
+
+export interface RoutePreview {
+  orderIds: number[];
+  estimatedTime: number;
+  totalDistance: number;
+  totalWeight: number;
+  routeGeometry: GeoJSON.LineString | null;
+  mapPoints: {
+    lng: number;
+    lat: number;
+    label: string;
+    completed?: boolean;
+  }[];
+}
+
 export interface ActiveDeliveryPoint {
   lng: number;
   lat: number;
   label: string;
+}
+
+export interface MapPoint {
+  orderId?: number;
+  lng: number;
+  lat: number;
+  label: string;
+  status?: string;
+  completed?: boolean;
 }
 
 export interface ActiveDeliveryLine {
@@ -38,10 +66,31 @@ export interface ActiveDeliveryLine {
   to: number;
 }
 
+export interface TrafficInfo {
+  estimatedTime: number;
+  totalDistance: number;
+  totalWeight?: number;
+  trafficEnabled?: boolean;
+}
+
 export interface ActiveDelivery {
   tripId: string;
+  tripNumericId: number;
   robotId: string;
   eta: number;
-  mapPoints: ActiveDeliveryPoint[];
-  mapLines: ActiveDeliveryLine[];
+  mapPoints: {
+    lng: number;
+    lat: number;
+    label: string;
+    completed?: boolean;
+  }[];
+  mapLines?: unknown[];
+  routeGeometry?: GeoJSON.LineString | null;
+  traveledPath?: GeoJSON.LineString | null;
+  robotPosition?: {
+    lng: number;
+    lat: number;
+  } | null;
+  status: string;
+  trafficInfo?: TrafficInfo;
 }

@@ -84,7 +84,11 @@ class Trip(db.Model):
     total_orders = db.Column(db.Integer)
     estimated_time = db.Column(db.Float)
     total_distance = db.Column(db.Float)
-
+    current_index = db.Column(db.Integer, default=0)
+    current_lat = db.Column(db.Float, nullable=True)
+    current_lng = db.Column(db.Float, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
     route_geometry = db.Column(db.Text)
 
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

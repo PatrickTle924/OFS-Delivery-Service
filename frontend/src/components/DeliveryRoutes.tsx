@@ -29,6 +29,11 @@ export function DeliveryRoutes({
     });
   }, [orders, search]);
 
+  const validSelectedIds = useMemo(() => {
+    const orderIds = new Set(orders.map((o) => o.id));
+    return new Set([...selectedIds].filter((id) => orderIds.has(id)));
+  }, [selectedIds, orders]);
+
   const toggleOrder = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -38,7 +43,7 @@ export function DeliveryRoutes({
   };
 
   const totalWeight = orders
-    .filter((o) => selectedIds.has(o.id))
+    .filter((o) => validSelectedIds.has(o.id))
     .reduce((sum, o) => sum + o.weight, 0);
 
   return (
@@ -110,7 +115,7 @@ export function DeliveryRoutes({
               <RouteOrderCard
                 key={order.id}
                 order={order}
-                selected={selectedIds.has(order.id)}
+                selected={validSelectedIds.has(order.id)}
                 onToggle={toggleOrder}
               />
             ))}
@@ -159,14 +164,14 @@ export function DeliveryRoutes({
                 color: "var(--color-forest)",
               }}
             >
-              {selectedIds.size} / {orders.length}
+              {validSelectedIds.size} / {orders.length}
             </p>
           </div>
         </div>
 
         <button
-          onClick={() => onGenerateRoutes([...selectedIds])}
-          disabled={selectedIds.size === 0}
+          onClick={() => onGenerateRoutes([...validSelectedIds])}
+          disabled={validSelectedIds.size === 0}
           className="w-full py-3 rounded-xl text-sm font-medium tracking-wide transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90"
           style={{
             background: "var(--color-forest)",

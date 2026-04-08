@@ -1,34 +1,50 @@
 @import "tailwindcss";
+@import "mapbox-gl/dist/mapbox-gl.css";
 
 @theme inline {
   --color-forest: #1e3a28;
-  --color-sage:   #4a7c59;
-  --color-mint:   #a8d5b5;
-  --color-cream:  #f5f0e8;
-  --color-warm:   #e8dfc8;
-  --color-clay:   #c4855a;
+  --color-sage: #4a7c59;
+  --color-mint: #a8d5b5;
+  --color-cream: #f5f0e8;
+  --color-warm: #e8dfc8;
+  --color-clay: #c4855a;
   --color-darkbg: #111a14;
 
   --font-playfair: var(--font-playfair);
-  --font-dm:       var(--font-dm-sans);
+  --font-dm: var(--font-dm-sans);
 
-  --animate-float:   float 4s ease-in-out infinite;
+  --animate-float: float 4s ease-in-out infinite;
   --animate-marquee: marquee 22s linear infinite;
-  --animate-fadeUp:  fadeUp 0.6s ease forwards;
+  --animate-fadeUp: fadeUp 0.6s ease forwards;
 
   @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50%       { transform: translateY(-10px); }
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
   }
 
   @keyframes marquee {
-    0%   { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
   }
 
   @keyframes fadeUp {
-    0%   { opacity: 0; transform: translateY(20px); }
-    100% { opacity: 1; transform: translateY(0); }
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 

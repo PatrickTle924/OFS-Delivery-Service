@@ -1,80 +1,192 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Order, RouteOption, ActiveDelivery } from "@/types/routing";
+import { useEffect, useRef, useState } from "react";
 import { DeliveryRoutes } from "@/components/DeliveryRoutes";
 import { SuggestedRoutes } from "@/components/SuggestedRoutes";
 import { ActiveDeliveryCard } from "@/components/ActiveDeliveryCard";
-import { fetchOrders, optimizeRoutes } from "@/lib/api-service";
+
+import {
+  Order,
+  RouteOption,
+  ActiveDelivery,
+  RoutePreview,
+} from "@/types/routing";
+import {
+  fetchOrders,
+  fetchActiveDelivery,
+  optimizeRoutes,
+  approveRoute,
+  startSimulation,
+  startTrip,
+} from "@/lib/api-service";
 
 export default function DeliveryDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completionMessage, setCompletionMessage] = useState<string | null>(
+    null,
+  );
 
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [activeDelivery, setActiveDelivery] = useState<ActiveDelivery | null>(
     null,
   );
+  const [approvedRoutePreview, setApprovedRoutePreview] =
+    useState<RoutePreview | null>(null);
+
+  const simulationRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const loadOrders = async () => {
+    const loadDashboardData = async () => {
       try {
         setLoadingOrders(true);
         setError(null);
 
-        const data: Order[] = await fetchOrders();
-        setOrders(data);
+        const [ordersData, activeData] = await Promise.all([
+          fetchOrders(),
+          fetchActiveDelivery(),
+        ]);
+
+        setOrders(ordersData);
+        setActiveDelivery(activeData.activeDelivery ?? null);
+        setRoutes([]);
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "Failed to load orders";
+          err instanceof Error ? err.message : "Failed to load dashboard";
         setError(message);
       } finally {
         setLoadingOrders(false);
       }
     };
 
-    loadOrders();
+    loadDashboardData();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (simulationRef.current) {
+        clearInterval(simulationRef.current);
+      }
+    };
   }, []);
 
   const handleGenerateRoutes = async (selectedIds: number[]) => {
     try {
       setLoadingRoutes(true);
       setError(null);
+      setCompletionMessage(null);
 
-      // clear previous results before generating new ones
       setRoutes([]);
-      setActiveDelivery(null);
+      setApprovedRoutePreview(null);
 
       const data: {
         suggestedRoutes?: RouteOption[];
-        activeDelivery?: ActiveDelivery | null;
+        routePreview?: RoutePreview | null;
       } = await optimizeRoutes(selectedIds);
 
       setRoutes(data.suggestedRoutes ?? []);
-      setActiveDelivery(data.activeDelivery ?? null);
+      setApprovedRoutePreview(data.routePreview ?? null);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to generate routes";
       setError(message);
       setRoutes([]);
-      setActiveDelivery(null);
+      setApprovedRoutePreview(null);
     } finally {
       setLoadingRoutes(false);
     }
   };
 
-  const handleViewMap = (routeId: number) => {
-    console.log("View map:", routeId);
+  const handleApprove = async (_routeId: number) => {
+    try {
+      if (!approvedRoutePreview) {
+        throw new Error("No route preview available");
+      }
+
+      setLoadingRoutes(true);
+      setError(null);
+      setCompletionMessage(null);
+
+      const data = await approveRoute({
+        routeData: approvedRoutePreview,
+        orderIds: approvedRoutePreview.orderIds,
+      });
+
+      setActiveDelivery(data.activeDelivery ?? null);
+      setRoutes([]);
+      setApprovedRoutePreview(null);
+
+      const refreshedOrders = await fetchOrders();
+      setOrders(refreshedOrders);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to approve route";
+      setError(message);
+    } finally {
+      setLoadingRoutes(false);
+    }
   };
 
-  const handleApprove = (routeId: number) => {
-    console.log("Approved:", routeId);
-  };
+  const handleTrackRobot = async (tripId: string) => {
+    try {
+      setError(null);
+      setCompletionMessage(null);
 
-  const handleTrackRobot = (tripId: string) => {
-    console.log("Tracking:", tripId);
+      const numericId = Number(tripId.replace("Trip #", ""));
+
+      if (simulationRef.current) {
+        clearInterval(simulationRef.current);
+        simulationRef.current = null;
+      }
+
+      if (activeDelivery?.status === "assigned") {
+        await startTrip(numericId);
+        const refreshed = await fetchActiveDelivery();
+        setActiveDelivery(refreshed.activeDelivery ?? null);
+      }
+
+      simulationRef.current = startSimulation(
+        numericId,
+        (updatedDelivery) => {
+          setActiveDelivery(updatedDelivery ?? null);
+        },
+        async () => {
+          const [refreshedOrders, refreshedDelivery] = await Promise.all([
+            fetchOrders(),
+            fetchActiveDelivery(),
+          ]);
+
+          setOrders(refreshedOrders);
+
+          if (refreshedDelivery.activeDelivery) {
+            setActiveDelivery(refreshedDelivery.activeDelivery);
+          } else {
+            setActiveDelivery((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: "completed",
+                  }
+                : null,
+            );
+          }
+
+          setCompletionMessage(`Trip ${tripId} completed successfully.`);
+
+          if (simulationRef.current) {
+            clearInterval(simulationRef.current);
+            simulationRef.current = null;
+          }
+        },
+        1000,
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to track robot";
+      setError(message);
+    }
   };
 
   return (
@@ -113,17 +225,23 @@ export default function DeliveryDashboardPage() {
               </div>
             )}
 
-            {activeDelivery && (
+            {completionMessage && (
+              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                {completionMessage}
+              </div>
+            )}
+
+            {activeDelivery && activeDelivery.tripId && (
               <ActiveDeliveryCard
                 delivery={activeDelivery}
                 onTrack={handleTrackRobot}
               />
             )}
 
-            {routes.length > 0 && (
+            {routes.length > 0 && approvedRoutePreview && (
               <SuggestedRoutes
                 routes={routes}
-                onViewMap={handleViewMap}
+                routePreview={approvedRoutePreview}
                 onApprove={handleApprove}
               />
             )}
