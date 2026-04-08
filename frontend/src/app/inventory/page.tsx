@@ -165,7 +165,7 @@ export default function InventoryPage() {
               + Add Item
             </button>
             <Link
-              href="/dashboard"
+              href="/empdashboard"
               className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
             >
               ← Back to Dashboard
