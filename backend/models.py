@@ -6,7 +6,6 @@ import enum
 from sqlalchemy import Enum
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Classes for the user/login, imported from app.py
 class UserRole(enum.Enum):
     CUSTOMER = "customer"
     EMPLOYEE = "employee"
@@ -15,28 +14,24 @@ class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     
-    # regular comlumns based on the frontend
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     phone_number = db.Column(db.String(20), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
-    # define functions for handling auth and passwords
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
     
-    # Add the Role column with a default val
-    role = db.Column(Enum(UserRole), default=UserRole.CUSTOMER, nullable=False) # fixed to use actual role enum
+    role = db.Column(Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)
 
-    # relations to the other tables
     customer_profile = db.relationship('CustomerProfile', backref='user', uselist=False)
     employee_profile = db.relationship('EmployeeProfile', backref='user', uselist=False)
 
-# separate role based tables, extend base User model with extra fields
 class CustomerProfile(db.Model):
     __tablename__ = 'customer_profiles'
     id = db.Column(db.Integer, primary_key=True)

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { registerUser, loginUser } from "@/lib/api-service";
+import type { RegisterInput } from "@/types/auth";
 
 type Mode = "login" | "register";
 type Role = "customer" | "employee";
@@ -90,27 +91,41 @@ export default function LoginRegisterPage() {
         if (form.password !== form.confirmPassword) {
           throw new Error("Passwords do not match.");
         }
-        await registerUser({
-          firstName: form.firstName,
-          lastName: form.lastName,
-          email: form.email,
-          phone: form.phone,
-          password: form.password,
-          role,
-          ...(role === "customer"
-            ? { deliveryAddress: form.address }
-            : { employeeId: form.employeeId }),
-        } as any);
+        const registrationPayload: RegisterInput = role === "customer"
+          ? {
+              firstName: form.firstName,
+              lastName: form.lastName,
+              email: form.email,
+              phone: form.phone,
+              password: form.password,
+              role: "customer",
+              deliveryAddress: form.address,
+            }
+          : {
+              firstName: form.firstName,
+              lastName: form.lastName,
+              email: form.email,
+              phone: form.phone,
+              password: form.password,
+              role: "employee",
+              employeeId: form.employeeId,
+            };
+
+        await registerUser(registrationPayload);
 
         setMode("login");
         setForm(INITIAL_FORM);
         setError("Registration successful! Please sign in.");
       } else {
-        await loginUser({ email: form.email, password: form.password });
+        const response = await loginUser({ email: form.email, password: form.password });
+        if (typeof window !== "undefined" && response.user) {
+          localStorage.setItem("ofsUser", JSON.stringify(response.user));
+          window.dispatchEvent(new Event("ofs-auth-changed"));
+        }
         router.push("/user/browse");
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
