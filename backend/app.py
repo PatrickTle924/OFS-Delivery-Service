@@ -363,7 +363,23 @@ def health():
         "message": "Backend is running"
     }), 200
 
+@app.route('/orders/history', methods=['GET'])
+def get_order_history():
+    orders = Order.query.order_by(Order.ordered_at.desc()).all()
+
+    return jsonify([
+        {
+            "order_id": o.order_id,
+            "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
+            "total_cost": o.total_cost,
+            "status": o.status,
+            "item_count": len(o.order_items)
+        }
+        for o in orders
+    ]), 200
 
 # for local development without Docker
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
+
