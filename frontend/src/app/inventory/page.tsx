@@ -132,11 +132,25 @@ export default function InventoryPage() {
   }
 };
 
-  const handleDeleteItem = (id: string) => {
-    if (confirm("Are you sure you want to delete this item?")) {
-      setItems(items.filter((item) => item.id !== id));
+  const handleDeleteItem = async (id: string) => {
+  const confirmed = confirm("Are you sure you want to delete this item?");
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`http://localhost:5000/products/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete product");
     }
-  };
+
+    await fetchInventory();
+  } catch (error) {
+    console.error("Failed to delete item:", error);
+    alert("Failed to delete item");
+  }
+};
 
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
