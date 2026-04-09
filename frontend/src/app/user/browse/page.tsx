@@ -1,174 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import ProductCard from "@/components/ProductCard";
 import CartDrawer from "@/components/CartDrawer";
 import { Product, CartItem, Category } from "@/types/shop";
-
-// ── Mock product data (replace with GET /api/products) ─────────────
-const PRODUCTS: Product[] = [
-    {
-        id: 1,
-        name: "Organic Fuji Apples",
-        category: "Fruits",
-        price: 4.99,
-        weight: 2.0,
-        stock: 50,
-        description: "Crisp, sweet apples from local orchards.",
-        imageUrl: "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=400&q=80",
-    },
-    {
-        id: 2,
-        name: "Fresh Blueberries",
-        category: "Fruits",
-        price: 5.49,
-        weight: 0.75,
-        stock: 30,
-        description: "Plump, antioxidant-rich blueberries.",
-        imageUrl: "https://images.unsplash.com/photo-1498557850523-fd3d118b962e?w=400&q=80",
-    },
-    {
-        id: 3,
-        name: "Heirloom Tomatoes",
-        category: "Vegetables",
-        price: 3.99,
-        weight: 1.5,
-        stock: 40,
-        description: "Vine-ripened heirloom varieties.",
-        imageUrl: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&q=80",
-    },
-    {
-        id: 4,
-        name: "Baby Spinach",
-        category: "Vegetables",
-        price: 2.99,
-        weight: 0.5,
-        stock: 60,
-        description: "Tender baby spinach, triple-washed.",
-        imageUrl: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=400&q=80",
-    },
-    {
-        id: 5,
-        name: "Organic Broccoli",
-        category: "Vegetables",
-        price: 2.49,
-        weight: 1.25,
-        stock: 45,
-        description: "Locally sourced, no pesticides.",
-        imageUrl: "https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?w=400&q=80",
-    },
-    {
-        id: 6,
-        name: "Free-Range Chicken Breast",
-        category: "Meats",
-        price: 11.99,
-        weight: 2.5,
-        stock: 20,
-        description: "Humanely raised, no hormones.",
-        imageUrl: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=400&q=80",
-    },
-    {
-        id: 7,
-        name: "Grass-Fed Ribeye",
-        category: "Meats",
-        price: 13.49,
-        weight: 2.0,
-        stock: 15,
-        description: "100% grass-fed, rich in omega-3.",
-        imageUrl: "https://images.unsplash.com/photo-1603048297172-c92544798d5a?w=400&q=80",
-    },
-    {
-        id: 8,
-        name: "Wild Salmon Fillet",
-        category: "Meats",
-        price: 16.99,
-        weight: 1.5,
-        stock: 12,
-        description: "Alaskan wild-caught, fresh-frozen.",
-        imageUrl: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&q=80",
-    },
-    {
-        id: 9,
-        name: "Organic Whole Milk",
-        category: "Dairy",
-        price: 5.29,
-        weight: 8.6,
-        stock: 35,
-        description: "From pasture-raised, local cows.",
-        imageUrl: "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&q=80",
-    },
-    {
-        id: 10,
-        name: "Greek Yogurt",
-        category: "Dairy",
-        price: 4.49,
-        weight: 2.0,
-        stock: 28,
-        description: "Thick, creamy, protein-packed.",
-        imageUrl: "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&q=80",
-    },
-    {
-        id: 11,
-        name: "Aged Cheddar",
-        category: "Dairy",
-        price: 6.99,
-        weight: 1.0,
-        stock: 22,
-        description: "Sharp 12-month aged cheddar block.",
-        imageUrl: "https://images.unsplash.com/photo-1618164435735-413d3b066c9a?w=400&q=80",
-    },
-    {
-        id: 12,
-        name: "Sourdough Loaf",
-        category: "Bakery",
-        price: 7.49,
-        weight: 2.0,
-        stock: 18,
-        description: "Long-fermented, hand-shaped loaf.",
-        imageUrl: "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?w=400&q=80",
-    },
-    {
-        id: 13,
-        name: "Multigrain Rolls",
-        category: "Bakery",
-        price: 4.99,
-        weight: 1.25,
-        stock: 24,
-        description: "Six-seed blend, baked daily.",
-        imageUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&q=80",
-    },
-    {
-        id: 14,
-        name: "Extra Virgin Olive Oil",
-        category: "Pantry",
-        price: 12.99,
-        weight: 2.5,
-        stock: 30,
-        description: "Cold-pressed, single-origin.",
-        imageUrl: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&q=80",
-    },
-    {
-        id: 15,
-        name: "Organic Brown Rice",
-        category: "Pantry",
-        price: 3.99,
-        weight: 4.0,
-        stock: 50,
-        description: "Long-grain, whole grain goodness.",
-        imageUrl: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&q=80",
-    },
-    {
-        id: 16,
-        name: "Raw Wildflower Honey",
-        category: "Pantry",
-        price: 9.49,
-        weight: 1.5,
-        stock: 20,
-        description: "Unfiltered, local wildflower honey.",
-        imageUrl: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=400&q=80",
-    },
-];
+import { fetchProducts } from "@/lib/api-service";
 
 const CATEGORIES: Category[] = ["Fruits", "Vegetables", "Meats", "Dairy", "Bakery", "Pantry"];
 
@@ -181,16 +18,35 @@ const IconSearch = () => (
 
 // ── Page ──────────────────────────────────────────────────────────
 export default function BrowsePage() {
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loadingProducts, setLoadingProducts] = useState(true);
+    const [productsError, setProductsError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
     const [cart, setCart] = useState<CartItem[]>([]);
     const [cartOpen, setCartOpen] = useState(false);
 
-    const filtered = useMemo(() => PRODUCTS.filter((p) => {
+    useEffect(() => {
+        const loadProducts = async () => {
+            try {
+                const data = await fetchProducts();
+                setProducts(data);
+                setProductsError(null);
+            } catch (error) {
+                setProductsError("Unable to load products right now.");
+            } finally {
+                setLoadingProducts(false);
+            }
+        };
+
+        loadProducts();
+    }, []);
+
+    const filtered = useMemo(() => products.filter((p) => {
         const matchesCategory = activeCategory === "All" || p.category === activeCategory;
         const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
         return matchesCategory && matchesSearch;
-    }), [search, activeCategory]);
+    }), [products, search, activeCategory]);
 
     const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
     const getQuantity = (id: number) => cart.find((i) => i.product.id === id)?.quantity ?? 0;
@@ -277,7 +133,16 @@ export default function BrowsePage() {
                 </div>
 
                 {/* Product grid */}
-                {filtered.length === 0 ? (
+                {loadingProducts ? (
+                    <div className="text-center py-24 text-forest/40">
+                        <p className="font-playfair text-2xl mb-2">Loading products...</p>
+                    </div>
+                ) : productsError ? (
+                    <div className="text-center py-24 text-forest/40">
+                        <p className="font-playfair text-2xl mb-2">Couldn&apos;t load products</p>
+                        <p className="text-sm font-light">{productsError}</p>
+                    </div>
+                ) : filtered.length === 0 ? (
                     <div className="text-center py-24 text-forest/40">
                         <p className="font-playfair text-2xl mb-2">No products found</p>
                         <p className="text-sm font-light">Try a different search or category.</p>

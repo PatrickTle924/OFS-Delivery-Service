@@ -1,45 +1,38 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import OrderCard, { OrderData } from "@/components/OrderCard";
 import Link from "next/link";
 
-//dummy data just to display stuff
-const DUMMY_ORDERS: OrderData[] = [
-  {
-    order_id: 8492,
-    ordered_at: "2026-03-15T14:30:00Z",
-    total_cost: 64.2,
-    status: "in progress",
-    item_count: 5,
-  },
-  {
-    order_id: 8421,
-    ordered_at: "2026-03-10T10:15:00Z",
-    total_cost: 124.5,
-    status: "delivered",
-    item_count: 12,
-  },
-  {
-    order_id: 8305,
-    ordered_at: "2026-02-28T18:45:00Z",
-    total_cost: 32.1,
-    status: "cancelled",
-    item_count: 3,
-  },
-  {
-    order_id: 8210,
-    ordered_at: "2026-02-14T09:00:00Z",
-    total_cost: 88.75,
-    status: "delivered",
-    item_count: 8,
-  },
-];
-
 export default function OrderHistoryPage() {
+  const [orders, setOrders] = useState<OrderData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchOrders() {
+      try {
+        const res = await fetch("http://localhost:5000/orders/history");
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch orders");
+        }
+
+        const data = await res.json();
+        setOrders(data);
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchOrders();
+  }, []);
+
   return (
     <main className="min-h-screen bg-cream font-dm relative pb-20">
-      {/* Background gradients matches Home/Browse */}
+      {/* Background gradients */}
       <div className="pointer-events-none fixed top-[-10%] left-[-10%] w-150 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.18)_0%,transparent_65%)] -z-10" />
       <div className="pointer-events-none fixed bottom-[-10%] right-[-10%] w-150 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.10)_0%,transparent_65%)] -z-10" />
 
@@ -59,26 +52,32 @@ export default function OrderHistoryPage() {
           </p>
         </div>
 
-        {/* Scrollable List Area */}
-        <div className="flex flex-col gap-4 overflow-y-auto max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-sage/20 scrollbar-track-transparent">
-          {DUMMY_ORDERS.map((order) => (
-            <OrderCard key={order.order_id} order={order} />
-          ))}
+        {/* Loading State */}
+        {loading ? (
+          <p className="text-forest/60">Loading orders...</p>
+        ) : (
+          <div className="flex flex-col gap-4 overflow-y-auto max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-sage/20 scrollbar-track-transparent">
+            {/* Orders List */}
+            {orders.map((order) => (
+              <OrderCard key={order.order_id} order={order} />
+            ))}
 
-          {DUMMY_ORDERS.length === 0 && (
-            <div className="text-center py-20 bg-white/40 rounded-3xl border border-dashed border-forest/10">
-              <p className="font-playfair text-xl text-forest/40">
-                No orders yet.
-              </p>
-              <Link
-                href="/user/browse"
-                className="text-sage text-sm underline mt-2 inline-block"
-              >
-                Start shopping
-              </Link>
-            </div>
-          )}
-        </div>
+            {/* Empty State */}
+            {orders.length === 0 && (
+              <div className="text-center py-20 bg-white/40 rounded-3xl border border-dashed border-forest/10">
+                <p className="font-playfair text-xl text-forest/40">
+                  No orders yet.
+                </p>
+                <Link
+                  href="/user/browse"
+                  className="text-sage text-sm underline mt-2 inline-block"
+                >
+                  Start shopping
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );

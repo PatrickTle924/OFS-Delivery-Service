@@ -15,12 +15,12 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     phone_number = db.Column(db.String(20), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     role = db.Column(Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)
 
@@ -32,6 +32,7 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
 
 class CustomerProfile(db.Model):
     __tablename__ = 'customer_profiles'
@@ -60,6 +61,7 @@ class Product(db.Model):
     description = db.Column(db.Text)
     weight = db.Column(db.Float, nullable=False)
     cost = db.Column(db.Float, nullable=False)
+    image_url = db.Column(db.String(500))
     category = db.Column(db.String(100))
     stock = db.Column(db.Integer, default=0)
 

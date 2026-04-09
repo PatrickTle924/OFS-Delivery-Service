@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { registerUser, loginUser } from "@/lib/api-service";
+import type { RegisterInput } from "@/types/auth";
 
 type Mode = "login" | "register";
 type Role = "customer" | "employee";
@@ -16,7 +17,7 @@ interface FormState {
   lastName: string;
   phone: string;
   address: string;
-  employeeCode: string;
+  employeeId: string;
 }
 
 const INITIAL_FORM: FormState = {
@@ -27,7 +28,7 @@ const INITIAL_FORM: FormState = {
   lastName: "",
   phone: "",
   address: "",
-  employeeCode: "",
+  employeeId: "",
 };
 
 const PERKS: string[] = [
@@ -100,36 +101,49 @@ export default function LoginRegisterPage() {
         if (form.password !== form.confirmPassword) {
           throw new Error("Passwords do not match.");
         }
-        await registerUser({
-          firstName: form.firstName,
-          lastName: form.lastName,
-          email: form.email,
-          phone: form.phone,
-          password: form.password,
-          role,
-          ...(role === "customer"
-            ? { deliveryAddress: form.address }
-            : { employeeCode: form.employeeCode }),
-        } as any);
+        const registrationPayload: RegisterInput =
+          role === "customer"
+            ? {
+                firstName: form.firstName,
+                lastName: form.lastName,
+                email: form.email,
+                phone: form.phone,
+                password: form.password,
+                role: "customer",
+                deliveryAddress: form.address,
+              }
+            : {
+                firstName: form.firstName,
+                lastName: form.lastName,
+                email: form.email,
+                phone: form.phone,
+                password: form.password,
+                role: "employee",
+                employeeId: form.employeeId,
+              };
+
+        await registerUser(registrationPayload);
 
         setMode("login");
         setForm(INITIAL_FORM);
         setError("Registration successful! Please sign in.");
       } else {
-        const data = await loginUser({
+        const response = await loginUser({
           email: form.email,
           password: form.password,
         });
-        const role = data.user.role;
-
-        if (role === "employee") {
-          router.push("/routing");
-        } else {
-          router.push("/user/browse");
+        if (typeof window !== "undefined" && response.user) {
+          localStorage.setItem("ofsUser", JSON.stringify(response.user));
+          window.dispatchEvent(new Event("ofs-auth-changed"));
         }
+        router.push("/user/browse");
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred. Please try again.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -320,11 +334,11 @@ export default function LoginRegisterPage() {
 
             {mode === "register" && role === "employee" && (
               <Field
-                label="Employee Code"
-                name="employeeCode"
+                label="Employee ID"
+                name="employeeId"
                 type="text"
                 placeholder="EMP-12345"
-                value={form.employeeCode}
+                value={form.employeeId}
                 onChange={handleChange}
               />
             )}
