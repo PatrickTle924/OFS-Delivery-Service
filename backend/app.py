@@ -218,13 +218,6 @@ with app.app_context():
     except Exception as e:
         print(f"❌ Error initializing database: {e}")
 
-# API ROUTES
-@app.route('/orders', methods=['GET'])
-def get_orders():
-    orders = Order.query.all()
-    return jsonify([{"id": o.id, "customerName": o.customer_name, "status": o.status} for o in orders])
-
-
 @app.route('/products', methods=['GET'])
 def get_products():
     products = Product.query.order_by(Product.product_id.asc()).all()
@@ -777,6 +770,59 @@ def advance_trip_progress(trip_id):
         **build_active_delivery_from_trip(trip)
     }), 200
 
+
+@app.route('/profile', methods=['GET'])
+def get_profile():
+    email = request.args.get('email', '').strip().lower()
+
+    if not email:
+        return jsonify({"error": "Email is required"}), 400
+
+    user = User.query.filter(db.func.lower(User.email) == email).first()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    customer_profile = user.customer_profile
+    created_at = user.created_at.astimezone(timezone.utc) if user.created_at else None
+
+    return jsonify({
+        "id": user.id,  
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "email": user.email,
+        "phone": user.phone_number,
+        "address": customer_profile.delivery_address if customer_profile else "",
+        "createdAt": created_at.isoformat() if created_at else None,
+        "role": user.role.value,
+    }), 200
+
+@app.route('/inventory', methods=['GET'])
+def get_inventory():
+    products = Product.query.all()
+
+    return jsonify([
+        {
+            "id": str(product.product_id),
+            "name": product.name,
+            "sku": f"PROD-{product.product_id:03d}",
+            "category": (product.category or "").lower(),
+            "quantity": product.stock,
+            "weight": str(product.weight),
+            "price": product.cost,
+            "reorderLevel": 10,
+            "lastRestocked": (
+                product.updated_at.strftime("%Y-%m-%d")
+                if product.updated_at
+                else (
+                    product.created_at.strftime("%Y-%m-%d")
+                    if product.created_at
+                    else ""
+                )
+            ),
+        }
+        for product in products
+    ]), 200
 
 @app.route('/products/<int:product_id>', methods=['PUT'])
 def update_product(product_id):

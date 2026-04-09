@@ -327,13 +327,7 @@ export default function HomePage() {
             href="/login-register"
             className="inline-block bg-cream text-forest font-medium px-10 py-4 rounded-full hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-black/30 transition-all duration-200 text-base shadow-xl"
           >
-            Documentation
-            <Link
-              href="/checkout"
-              className="flex h-12 w-full items-center justify-center rounded-full bg-black px-5 text-white transition hover:bg-zinc-800 md:w-[158px]"
-            >
-              Go to Checkout
-            </Link>
+            Sign up
           </Link>
         </div>
       </div>

@@ -136,7 +136,11 @@ export default function LoginRegisterPage() {
           localStorage.setItem("ofsUser", JSON.stringify(response.user));
           window.dispatchEvent(new Event("ofs-auth-changed"));
         }
-        router.push("/user/browse");
+        if (response.user?.role === "employee") {
+          router.push("/empdashboard");
+        } else {
+          router.push("/user/browse");
+        }
       }
     } catch (err) {
       setError(

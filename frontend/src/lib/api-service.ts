@@ -1,4 +1,3 @@
-import { Order } from "@/types/delivery";
 import { RegisterInput, LoginInput, UserRole } from "@/types/auth";
 import { Product } from "@/types/shop";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL; //will change later when Flask set up
@@ -141,12 +140,16 @@ export function startSimulation(
   return interval;
 }
 
-//order services
-export const fetchOrders = async (): Promise<Order[]> => {
-  const response = await fetch(`${API_BASE_URL}/orders`);
-  if (!response.ok) throw new Error("Failed to fetch orders");
-  return response.json();
-};
+export async function fetchOrders() {
+  const res = await fetch(`${API_BASE_URL}/orders`);
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to fetch orders");
+  }
+
+  return data;
+}
 
 export const fetchProducts = async (): Promise<Product[]> => {
   const response = await fetch(`${API_BASE_URL}/products`);

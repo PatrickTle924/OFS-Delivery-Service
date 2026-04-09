@@ -19,6 +19,7 @@ import {
   startSimulation,
   startTrip,
 } from "@/lib/api-service";
+import Link from "next/dist/client/link";
 
 export default function DeliveryDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -247,6 +248,12 @@ export default function DeliveryDashboardPage() {
             )}
           </div>
         </div>
+        <Link
+          href="/empdashboard"
+          className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
+        >
+          ← Back to Dashboard
+        </Link>
       </main>
     </div>
   );

@@ -49,7 +49,7 @@ export default function CheckoutPage() {
   const total = subtotal + deliveryFee + tax;
 
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
     const { name, value } = e.target;
     setDeliveryInfo((prev) => ({
@@ -100,7 +100,7 @@ export default function CheckoutPage() {
 
       const result = await response.json();
       setSuccessMessage(
-        `Order placed successfully! Order ID: ${result.id ?? "Created"}`
+        `Order placed successfully! Order ID: ${result.id ?? "Created"}`,
       );
     } catch (error) {
       console.error(error);
@@ -117,7 +117,9 @@ export default function CheckoutPage() {
 
         <div className="grid gap-8 md:grid-cols-2">
           <div className="rounded-2xl bg-white p-6 shadow">
-            <h2 className="mb-4 text-2xl font-semibold">Delivery Information</h2>
+            <h2 className="mb-4 text-2xl font-semibold">
+              Delivery Information
+            </h2>
 
             <div className="grid gap-4">
               <input
@@ -184,7 +186,9 @@ export default function CheckoutPage() {
                 >
                   <div>
                     <p className="font-medium">{item.name}</p>
-                    <p className="text-sm text-zinc-500">Qty: {item.quantity}</p>
+                    <p className="text-sm text-zinc-500">
+                      Qty: {item.quantity}
+                    </p>
                   </div>
                   <p>${(item.price * item.quantity).toFixed(2)}</p>
                 </div>
