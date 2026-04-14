@@ -57,7 +57,6 @@ export default function OrderHistoryPage() {
           <p className="text-forest/60">Loading orders...</p>
         ) : (
           <div className="flex flex-col gap-4 overflow-y-auto max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-sage/20 scrollbar-track-transparent">
-            
             {/* Orders List */}
             {orders.map((order) => (
               <OrderCard key={order.order_id} order={order} />

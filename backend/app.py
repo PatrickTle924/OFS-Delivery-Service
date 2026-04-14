@@ -1,5 +1,7 @@
 # flask file
 
+import os
+
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -7,24 +9,24 @@ import uuid
 import enum
 import os
 from datetime import timezone
-from sqlalchemy import text
-from sqlalchemy import Enum
-from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Product
+from sqlalchemy import text, Enum
+from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product
 from database import db
+import time
+import requests
+import json
+from datetime import datetime
+
 
 app = Flask(__name__)
 CORS(app) # Allow Next.js to communicate with Flask
-
 # kept main 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:password@db:5432/delivery_db')
-
-
 # Connect the db instance to our flask app
 db.init_app(app)
 
-with app.app_context():
-    db.create_all()
 
+MAPBOX_ACCESS_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
 
 MOCK_PRODUCTS = [
     {
@@ -216,13 +218,6 @@ with app.app_context():
     except Exception as e:
         print(f"❌ Error initializing database: {e}")
 
-# API ROUTES
-@app.route('/orders', methods=['GET'])
-def get_orders():
-    orders = Order.query.all()
-    return jsonify([{"id": o.id, "customerName": o.customer_name, "status": o.status} for o in orders])
-
-
 @app.route('/products', methods=['GET'])
 def get_products():
     products = Product.query.order_by(Product.product_id.asc()).all()
@@ -241,6 +236,10 @@ def get_products():
     ])
     
 
+WAREHOUSE = {
+    "name": "warehouse",
+    "coordinates": [-121.8900, 37.3350]
+}
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -301,31 +300,475 @@ def login():
     return jsonify({"error": "Invalid credentials"}), 401
 
 
-@app.route('/change-password', methods=['POST'])
-def change_password():
-    data = request.get_json() or {}
-    email = (data.get('email') or '').strip().lower()
-    current_password = data.get('currentPassword') or ''
-    new_password = data.get('newPassword') or ''
+@app.route('/orders', methods=['GET'])
+def get_orders():
+    orders = Order.query.filter_by(status="pending").all()
 
-    if not email or not current_password or not new_password:
-        return jsonify({"error": "Email, current password, and new password are required"}), 400
+    return jsonify([
+        {
+            "id": o.order_id,
+            "label": f"Order #{o.order_id}",
+            "weight": o.total_weight,
+            "address": o.delivery_address,
+            "city": o.delivery_city,
+            "state": o.delivery_state,
+            "zip": o.delivery_zip,
+            "price": o.total_cost,
+            "lat": o.delivery_lat,
+            "lng": o.delivery_lng,
+            "status": o.status,
+            "orderedAt": o.ordered_at.isoformat() if o.ordered_at else None
+        }
+        for o in orders
+    ])
 
-    if len(new_password) < 8:
-        return jsonify({"error": "New password must be at least 8 characters"}), 400
 
-    user = User.query.filter(db.func.lower(User.email) == email).first()
+def build_v1_coordinates(selected_orders):
+    coords = [f"{WAREHOUSE['coordinates'][0]},{WAREHOUSE['coordinates'][1]}"]
 
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    for order in selected_orders:
+        coords.append(f"{order.delivery_lng},{order.delivery_lat}")
 
-    if not user.check_password(current_password):
-        return jsonify({"error": "Current password is incorrect"}), 401
+    return ";".join(coords)
 
-    user.set_password(new_password)
+def build_directions_coordinates(ordered_orders, return_to_warehouse=True):
+    coords = [f"{WAREHOUSE['coordinates'][0]},{WAREHOUSE['coordinates'][1]}"]
+
+    for order in ordered_orders:
+        coords.append(f"{order.delivery_lng},{order.delivery_lat}")
+
+    if return_to_warehouse:
+        coords.append(f"{WAREHOUSE['coordinates'][0]},{WAREHOUSE['coordinates'][1]}")
+
+    return ";".join(coords)
+
+def get_traffic_aware_route(ordered_orders, return_to_warehouse=True):
+    coordinates = build_directions_coordinates(
+        ordered_orders,
+        return_to_warehouse=return_to_warehouse
+    )
+
+    url = f"https://api.mapbox.com/directions/v5/mapbox/driving-traffic/{coordinates}"
+    params = {
+        "access_token": MAPBOX_ACCESS_TOKEN,
+        "geometries": "geojson",
+        "overview": "full",
+        "steps": "false"
+    }
+
+    resp = requests.get(url, params=params, timeout=30)
+
+    if resp.status_code != 200:
+        raise Exception(f"Directions API failed: {resp.text}")
+
+    data = resp.json()
+    routes = data.get("routes", [])
+
+    if not routes:
+        raise Exception("No traffic-aware routes returned")
+
+    return routes[0]
+
+
+
+def transform_v1_solution_for_frontend(selected_orders, solution):
+    trips = solution.get("trips", [])
+    waypoints = solution.get("waypoints", [])
+
+    if not trips:
+        return {
+            "suggestedRoutes": [],
+            "routePreview": None,
+        }
+
+    order_by_input_index = {
+        index + 1: order for index, order in enumerate(selected_orders)
+    }
+
+    optimized_order_entries = []
+
+    for waypoint_input_index, waypoint in enumerate(waypoints):
+        if waypoint_input_index == 0:
+            continue
+
+        optimized_position = waypoint.get("waypoint_index")
+        order = order_by_input_index.get(waypoint_input_index)
+
+        if order is None or optimized_position is None:
+            continue
+
+        optimized_order_entries.append({
+            "optimized_position": optimized_position,
+            "order": order,
+        })
+
+    optimized_order_entries.sort(key=lambda x: x["optimized_position"])
+    ordered_orders = [entry["order"] for entry in optimized_order_entries]
+
+    if not ordered_orders:
+        return {
+            "suggestedRoutes": [],
+            "routePreview": None,
+        }
+
+    traffic_route = get_traffic_aware_route(
+        ordered_orders,
+        return_to_warehouse=True
+    )
+
+    route_stops = []
+    map_points = []
+
+    for i, order in enumerate(ordered_orders, start=1):
+        route_stops.append({
+            "label": str(i),
+            "address": order.delivery_address,
+        })
+
+        map_points.append({
+            "lng": order.delivery_lng,
+            "lat": order.delivery_lat,
+            "label": str(i),
+            "completed": False,
+        })
+
+    total_distance_km = round((traffic_route.get("distance", 0) or 0) / 1000, 1)
+    estimated_time_min = round((traffic_route.get("duration", 0) or 0) / 60)
+    geometry = traffic_route.get("geometry")
+
+    suggested_route = {
+        "id": 1,
+        "title": "Optimized Route",
+        "subtitle": "Traffic-aware ETA",
+        "estimatedTime": estimated_time_min,
+        "totalDistance": total_distance_km,
+        "stops": route_stops,
+    }
+
+    return {
+        "suggestedRoutes": [suggested_route],
+        "routePreview": {
+            "orderIds": [o.order_id for o in ordered_orders],
+            "estimatedTime": estimated_time_min,
+            "totalDistance": total_distance_km,
+            "totalWeight": sum((o.total_weight or 0) for o in ordered_orders),
+            "routeGeometry": geometry,
+            "mapPoints": map_points,
+        },
+    }
+
+@app.route("/optimize-routes", methods=["POST"])
+def optimize_routes():
+    data = request.get_json()
+    selected_order_ids = data.get("orderIds", [])
+
+    if not selected_order_ids:
+        return jsonify({"error": "No orders selected"}), 400
+
+    selected_orders = Order.query.filter(Order.order_id.in_(selected_order_ids)).all()
+
+    if not selected_orders:
+        return jsonify({"error": "No matching orders found"}), 404
+
+    missing_coords = [
+        o.order_id
+        for o in selected_orders
+        if o.delivery_lat is None or o.delivery_lng is None
+    ]
+    if missing_coords:
+        return jsonify(
+            {
+                "error": "Some selected orders are missing coordinates",
+                "orderIds": missing_coords,
+            }
+        ), 400
+
+    if not MAPBOX_ACCESS_TOKEN:
+        return jsonify({"error": "MAPBOX_ACCESS_TOKEN is not configured"}), 500
+
+    MAX_ORDERS_PER_TRIP = 10
+    MAX_TOTAL_WEIGHT = 200
+
+    if len(selected_orders) > MAX_ORDERS_PER_TRIP:
+        return jsonify(
+            {
+                "error": f"A robot can carry at most {MAX_ORDERS_PER_TRIP} orders per trip"
+            }
+        ), 400
+
+    total_selected_weight = sum((o.total_weight or 0) for o in selected_orders)
+
+    if total_selected_weight > MAX_TOTAL_WEIGHT:
+        return jsonify(
+            {
+                "error": f"Selected orders weigh {total_selected_weight} lbs. Maximum allowed is {MAX_TOTAL_WEIGHT} lbs per trip."
+            }
+        ), 400
+
+    coordinates = build_v1_coordinates(selected_orders)
+
+    url = f"https://api.mapbox.com/optimized-trips/v1/mapbox/driving/{coordinates}"
+    params = {
+        "access_token": MAPBOX_ACCESS_TOKEN,
+        "source": "first",
+        "roundtrip": "true",
+        "geometries": "geojson",
+        "overview": "full",
+        "steps": "false",
+    }
+
+    resp = requests.get(url, params=params, timeout=30)
+
+    if resp.status_code != 200:
+        return jsonify(
+            {
+                "error": "Failed to retrieve optimization",
+                "details": resp.text,
+            }
+        ), 500
+
+    solution = resp.json()
+
+    if solution.get("code") != "Ok":
+        return jsonify(
+            {
+                "error": "Mapbox optimization failed",
+                "details": solution,
+            }
+        ), 400
+
+    try:
+        result = transform_v1_solution_for_frontend(selected_orders, solution)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify(
+            {
+                "error": "Traffic-aware routing failed",
+                "details": str(e),
+            }
+        ), 500
+
+def build_active_delivery_from_trip(trip):
+    assigned_orders = (
+        Order.query.filter(Order.trip_id == trip.trip_id)
+        .order_by(Order.order_id.asc())
+        .all()
+    )
+
+    map_points = []
+    for i, order in enumerate(assigned_orders, start=1):
+        if order.delivery_lat is None or order.delivery_lng is None:
+            continue
+
+        map_points.append({
+            "lng": order.delivery_lng,
+            "lat": order.delivery_lat,
+            "label": str(i),
+            "completed": order.status == "delivered",
+        })
+
+    route_geometry = None
+    traveled_path = None
+
+    if trip.route_geometry:
+        try:
+            route_geometry = json.loads(trip.route_geometry)
+            coords = route_geometry.get("coordinates", [])
+            if coords:
+                current_index = trip.current_index or 0
+                traveled_coords = coords[: current_index + 1]
+                traveled_path = {
+                    "type": "LineString",
+                    "coordinates": traveled_coords,
+                }
+        except Exception:
+            route_geometry = None
+            traveled_path = None
+
+    active_delivery = {
+        "tripId": f"Trip #{trip.trip_id}",
+        "tripNumericId": trip.trip_id,
+        "robotId": "Robot-01",
+        "eta": round(trip.estimated_time or 0),
+        "mapPoints": map_points,
+        "mapLines": [],
+        "routeGeometry": route_geometry,
+        "traveledPath": traveled_path,
+        "robotPosition": {
+            "lng": trip.current_lng,
+            "lat": trip.current_lat,
+        } if trip.current_lng is not None and trip.current_lat is not None else None,
+        "status": trip.status,
+    }
+
+    return {"activeDelivery": active_delivery}
+
+@app.route("/approve-route", methods=["POST"])
+def approve_route():
+    data = request.get_json()
+
+    route_data = data.get("routeData")
+    order_ids = data.get("orderIds", [])
+
+    if not route_data:
+        return jsonify({"error": "Missing routeData"}), 400
+
+    if not order_ids:
+        return jsonify({"error": "Missing orderIds"}), 400
+
+    selected_orders = Order.query.filter(Order.order_id.in_(order_ids)).all()
+
+    if not selected_orders:
+        return jsonify({"error": "No matching orders found"}), 404
+
+    already_assigned = [o.order_id for o in selected_orders if o.trip_id is not None]
+    if already_assigned:
+        return jsonify(
+            {
+                "error": "Some orders are already assigned to a trip",
+                "orderIds": already_assigned,
+            }
+        ), 400
+
+    new_trip = Trip(
+        status="assigned",
+        total_weight=route_data.get("totalWeight", 0),
+        total_orders=len(order_ids),
+        estimated_time=route_data.get("estimatedTime", 0),
+        total_distance=route_data.get("totalDistance", 0),
+        route_geometry=json.dumps(route_data.get("routeGeometry"))
+        if route_data.get("routeGeometry")
+        else None,
+    )
+
+    db.session.add(new_trip)
+    db.session.flush()
+
+    for order in selected_orders:
+        order.trip_id = new_trip.trip_id
+        order.status = "assigned"
+
     db.session.commit()
 
-    return jsonify({"message": "Password updated successfully"}), 200
+    return jsonify({"activeDelivery": build_active_delivery_from_trip(new_trip)["activeDelivery"]}), 201
+
+
+@app.route("/active-delivery", methods=["GET"])
+def get_active_delivery():
+    active_trip = (
+        Trip.query.filter(Trip.status.in_(["assigned", "in_progress"]))
+        .order_by(Trip.created_at.desc())
+        .first()
+    )
+
+    if not active_trip:
+        return jsonify({"activeDelivery": None}), 200
+
+    return jsonify(build_active_delivery_from_trip(active_trip)), 200
+
+
+@app.route("/start-trip/<int:trip_id>", methods=["POST"])
+def start_trip(trip_id):
+    trip = Trip.query.get(trip_id)
+    if not trip:
+        return jsonify({"error": "Trip not found"}), 404
+
+    if trip.status not in ["assigned", "in_progress"]:
+        return jsonify({"error": "Trip cannot be started"}), 400
+
+    route_geometry = None
+    try:
+        route_geometry = json.loads(trip.route_geometry) if trip.route_geometry else None
+    except Exception:
+        return jsonify({"error": "Invalid route geometry"}), 400
+
+    if not route_geometry or "coordinates" not in route_geometry:
+        return jsonify({"error": "No route coordinates available"}), 400
+
+    coords = route_geometry["coordinates"]
+    if not coords:
+        return jsonify({"error": "Empty route coordinates"}), 400
+
+    trip.status = "in_progress"
+    trip.started_at = trip.started_at or datetime.utcnow()
+    trip.current_index = 0
+    trip.current_lng = coords[0][0]
+    trip.current_lat = coords[0][1]
+
+    db.session.commit()
+
+    return jsonify({"message": "Trip started"}), 200
+
+def is_near(lng1, lat1, lng2, lat2, threshold=0.0005):
+    return abs(lng1 - lng2) <= threshold and abs(lat1 - lat2) <= threshold
+
+@app.route("/trip-progress/<int:trip_id>", methods=["POST"])
+def advance_trip_progress(trip_id):
+    trip = Trip.query.get(trip_id)
+    if not trip:
+        return jsonify({"error": "Trip not found"}), 404
+
+    if trip.status != "in_progress":
+        return jsonify({"error": "Trip is not in progress"}), 400
+
+    try:
+        route_geometry = json.loads(trip.route_geometry) if trip.route_geometry else None
+    except Exception:
+        return jsonify({"error": "Invalid route geometry"}), 400
+
+    if not route_geometry or "coordinates" not in route_geometry:
+        return jsonify({"error": "No route coordinates"}), 400
+
+    coords = route_geometry["coordinates"]
+    if not coords:
+        return jsonify({"error": "Empty route coordinates"}), 400
+
+    next_index = (trip.current_index or 0) + 1
+
+    if next_index >= len(coords):
+        trip.current_index = len(coords) - 1
+        trip.current_lng = coords[-1][0]
+        trip.current_lat = coords[-1][1]
+        trip.status = "completed"
+        trip.completed_at = datetime.utcnow()
+
+        orders = Order.query.filter_by(trip_id=trip.trip_id).all()
+        for order in orders:
+            order.status = "delivered"
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Trip completed",
+            "completed": True,
+            **build_active_delivery_from_trip(trip)
+        }), 200
+
+    trip.current_index = next_index
+    trip.current_lng = coords[next_index][0]
+    trip.current_lat = coords[next_index][1]
+
+    assigned_orders = Order.query.filter_by(trip_id=trip.trip_id).all()
+    for order in assigned_orders:
+        if (
+            order.status != "delivered"
+            and order.delivery_lng is not None
+            and order.delivery_lat is not None
+            and is_near(
+                trip.current_lng,
+                trip.current_lat,
+                order.delivery_lng,
+                order.delivery_lat
+            )
+        ):
+            order.status = "delivered"
+
+    db.session.commit()
+
+    return jsonify({
+        "completed": False,
+        **build_active_delivery_from_trip(trip)
+    }), 200
 
 
 @app.route('/profile', methods=['GET'])
@@ -344,7 +787,7 @@ def get_profile():
     created_at = user.created_at.astimezone(timezone.utc) if user.created_at else None
 
     return jsonify({
-        "id": user.id,
+        "id": user.id,  
         "firstName": user.first_name,
         "lastName": user.last_name,
         "email": user.email,
@@ -380,7 +823,6 @@ def get_inventory():
         }
         for product in products
     ]), 200
-
 
 @app.route('/products/<int:product_id>', methods=['PUT'])
 def update_product(product_id):
@@ -492,5 +934,6 @@ def get_order_history():
 # for local development without Docker
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
 
 
