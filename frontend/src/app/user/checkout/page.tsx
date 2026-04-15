@@ -4,13 +4,6 @@ import { useMemo, useState } from "react";
 import { useCart } from "@/context/CartContext";
 
 
-type CartItem = {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-};
-
 type DeliveryInfo = {
   fullName: string;
   phone: string;
@@ -32,6 +25,7 @@ export default function CheckoutPage() {
     clearCart,
   } = useCart();
 
+
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     fullName: "",
     phone: "",
@@ -46,9 +40,7 @@ export default function CheckoutPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const subtotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  }, [cartItems]);
+  const subtotal = totalPrice;
 
   const deliveryFee = 4.99;
   const tax = subtotal * 0.08;
@@ -84,7 +76,7 @@ export default function CheckoutPage() {
 
       const payload = {
         customerName: deliveryInfo.fullName,
-        items: cartItems,
+        items: cart,
         deliveryInfo,
         subtotal,
         deliveryFee,
@@ -185,18 +177,18 @@ export default function CheckoutPage() {
             <h2 className="mb-4 text-2xl font-semibold">Order Summary</h2>
 
             <div className="space-y-4">
-              {cartItems.map((item) => (
+              {cart.map((item) => (
                 <div
-                  key={item.id}
+                  key={item.product.id}
                   className="flex items-center justify-between border-b pb-3"
                 >
                   <div>
-                    <p className="font-medium">{item.name}</p>
+                    <p className="font-medium">{item.product.name}</p>
                     <p className="text-sm text-zinc-500">
                       Qty: {item.quantity}
                     </p>
                   </div>
-                  <p>${(item.price * item.quantity).toFixed(2)}</p>
+                  <p>${(item.product.price * item.quantity).toFixed(2)}</p>
                 </div>
               ))}
             </div>
