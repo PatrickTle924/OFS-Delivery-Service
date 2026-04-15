@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import EmployeeSidebar from "@/components/EmployeeSidebar";
 
 interface InventoryItem {
   id: string;
@@ -207,7 +207,9 @@ const handleSaveItem = async () => {
   const lowStockItems = filteredItems.filter((item) => item.quantity <= item.reorderLevel);
 
   return (
-    <div className="min-h-screen bg-cream p-8 font-dm">
+    <div className="min-h-screen bg-cream font-dm flex">
+      <EmployeeSidebar active="inventory" />
+      <div className="flex-1 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex justify-between items-center">
@@ -222,12 +224,6 @@ const handleSaveItem = async () => {
             >
               + Add Item
             </button>
-            <Link
-              href="/empdashboard"
-              className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-            >
-              ← Back to Dashboard
-            </Link>
           </div>
         </div>
 
@@ -340,6 +336,7 @@ const handleSaveItem = async () => {
             </table>
           </div>
         )}
+      </div>
       </div>
 
       {/* Add/Edit Modal */}

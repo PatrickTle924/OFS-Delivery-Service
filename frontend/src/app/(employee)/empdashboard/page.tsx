@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import EmployeeSidebar from "@/components/EmployeeSidebar";
 
 interface Order {
   id: string;
@@ -112,61 +113,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-cream font-dm">
-      {/* Sidebar */}
-      <div className="w-64 bg-forest text-cream p-6 shadow-lg">
-        <div className="mb-8">
-          <h2 className="font-playfair text-2xl font-bold mb-2">OFS</h2>
-          <p className="text-cream/80 text-sm">Organic Food Service</p>
-        </div>
-
-        <nav className="space-y-2">
-          <Link
-            href="/empdashboard"
-            className="block px-4 py-3 rounded-lg bg-sage text-white font-medium transition-colors hover:bg-sage/90"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/inventory"
-            className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-          >
-            Inventory
-          </Link>
-          <Link
-            href="/orders"
-            className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-          >
-            Orders
-          </Link>
-          <Link
-            href="/routing"
-            className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-          >
-            Deliveries
-          </Link>
-          <Link
-            href="/reports"
-            className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-          >
-            Reports
-          </Link>
-          <Link
-            href="/settings"
-            className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-          >
-            Settings
-          </Link>
-        </nav>
-
-        <div className="mt-auto pt-6 border-t border-cream/20">
-          <button
-            onClick={() => router.push("/login")}
-            className="w-full px-4 py-2 rounded-lg bg-warm/30 text-cream font-medium transition-colors hover:bg-warm/50"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+      <EmployeeSidebar active="dashboard" />
 
       {/* Main Content */}
       <div className="flex-1 p-8">
