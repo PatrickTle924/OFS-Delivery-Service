@@ -10,7 +10,7 @@ import enum
 import os
 from datetime import timezone
 from sqlalchemy import text, Enum
-from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product
+from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product
 from database import db
 import time
 import requests
@@ -132,19 +132,71 @@ def get_orders():
         for o in orders
     ])
 
-@app.route('/orders/', methods=['POST'])
+@app.route('/orders', methods=['POST'])
 def create_order():
     data = request.get_json()
 
+    delivery_info = data.get("deliveryInfo", {})
+    items = data.get("items", [])
+
+    if not items:
+        return jsonify({"error": "No items in order"}), 400
+    
     user_id = data.get("userId")
 
     if not user_id:
         return jsonify({"error": "Missing user"}), 400
-    
-    
+
+    customer = CustomerProfile.query.filter_by(user_id=user_id).first()
+
+    if not customer:
+        return jsonify({"error": "Customer profile not found"}), 400
+
+    customer_id = customer.id
+
+    try:
+        #TODO: update the null inputs later with actual data from frontend
+        new_order = Order(
+            customer_id=customer_id,
+            delivery_address=delivery_info.get("addressLine1", ""),
+            delivery_city=delivery_info.get("city", ""),
+            delivery_zip=delivery_info.get("zipCode", ""),
+            subtotal=data.get("subtotal", 0),
+            total_weight=data.get("total_weight", 0),
+            delivery_fee=data.get("deliveryFee", 0),
+            total_cost=data.get("total", 0)
+        )
+
+        db.session.add(new_order)
+        db.session.flush()
+
+        for i in items:
+            product = Product.query.get(i["product"]["id"])
+            if not product:
+                db.session.rollback()
+                return jsonify({"error": f"Product with id {i['product']['id']} not found"}), 400   
+            if product.stock < i["quantity"]:
+                db.session.rollback()
+                return jsonify({"error": f"Not enough stock for product {product.name}"}), 400      
+            product.stock -= i["quantity"]
+
+            order_item = OrderItem(
+                    order_id=new_order.order_id,
+                    product_id=i["product"]["id"],
+                    quantity=i["quantity"],
+                    unit_price=product.cost,
+                    unit_weight=product.weight
+                )                   
+            
+            db.session.add(order_item)
+
+        db.session.commit()
 
 
-    
+        return jsonify({"message": "Order created", "order_id": new_order.order_id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500        
 
 
 

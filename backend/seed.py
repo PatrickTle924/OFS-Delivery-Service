@@ -19,15 +19,10 @@ def seed_all():
     with app.app_context():
         print("Starting seed...")
         # Optional: wipe existing data in dependency order
-        Payment.query.delete()
-        OrderItem.query.delete()
-        Order.query.delete()
-        Trip.query.delete()
-        Product.query.delete()
-        EmployeeProfile.query.delete()
-        CustomerProfile.query.delete()
-        User.query.delete()
-        db.session.commit()
+           # Skip if already seeded
+        if User.query.first():
+            print("Database already seeded. Skipping.")
+            return
 
         # -------------------
         # Users

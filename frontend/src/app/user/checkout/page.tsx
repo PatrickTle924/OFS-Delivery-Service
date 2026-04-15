@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useCart } from "@/context/CartContext";
+import { useRouter } from "next/navigation";
 
 
 type DeliveryInfo = {
@@ -15,6 +16,9 @@ type DeliveryInfo = {
 };
 
 export default function CheckoutPage() {
+
+    const router = useRouter();
+
     const {
     cart,
     totalItems,
@@ -75,6 +79,12 @@ export default function CheckoutPage() {
       setLoading(true);
 
       const user = JSON.parse(localStorage.getItem("ofsUser") || "null");
+      
+
+      const total_weight = cart.reduce(
+  (acc, item) => acc + (item.product.weight || 0) * item.quantity,
+  0,
+);
 
       const payload = {
         customerName: deliveryInfo.fullName,
@@ -85,6 +95,7 @@ export default function CheckoutPage() {
         deliveryFee,
         tax,
         total,
+        total_weight,
       };
 
       const response = await fetch("http://localhost:5000/orders", {
@@ -96,16 +107,19 @@ export default function CheckoutPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to place order");
-      }
+  const errData = await response.json();
+  throw new Error(errData.error || "Failed to place order");
+}
 
       const result = await response.json();
       setSuccessMessage(
         `Order placed successfully! Order ID: ${result.id ?? "Created"}`,
       );
+      router.push("/user/browse");
     } catch (error) {
       console.error(error);
-      setErrorMessage("Failed to place order. Please try again.");
+      //setErrorMessage("Failed to place order. Please try again.");
+      setErrorMessage(error instanceof Error ? error.message : "Failed to place order. Please try again.");
     } finally {
       setLoading(false);
     }
