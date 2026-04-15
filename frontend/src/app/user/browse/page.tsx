@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import ProductCard from "@/components/ProductCard";
 import CartDrawer from "@/components/CartDrawer";
 import { Product, Category } from "@/types/shop";
 import { fetchProducts } from "@/lib/api-service";
 import { useCart } from "@/context/CartContext";
+import { getStoredUser, isCustomerUser } from "@/lib/auth";
 
 const CATEGORIES: Category[] = ["Fruits", "Vegetables", "Meats", "Dairy", "Bakery", "Pantry"];
 
@@ -19,6 +21,7 @@ const IconSearch = () => (
 
 // ── Page ──────────────────────────────────────────────────────────
 export default function BrowsePage() {
+    const router = useRouter();
     const [products, setProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(true);
     const [productsError, setProductsError] = useState<string | null>(null);
@@ -36,6 +39,12 @@ export default function BrowsePage() {
   } = useCart();
 
     useEffect(() => {
+        const user = getStoredUser();
+        if (!isCustomerUser(user)) {
+            router.replace("/login-register");
+            return;
+        }
+
         const loadProducts = async () => {
             try {
                 const data = await fetchProducts();
@@ -49,7 +58,7 @@ export default function BrowsePage() {
         };
 
         loadProducts();
-    }, []);
+    }, [router]);
 
     const filtered = useMemo(() => products.filter((p) => {
         const matchesCategory = activeCategory === "All" || p.category === activeCategory;

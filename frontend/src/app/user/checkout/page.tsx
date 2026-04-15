@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useCart } from "@/context/CartContext";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import { getStoredUser, isCustomerUser } from "@/lib/auth";
+import { useCart } from "@/context/CartContext";
 
 
 type DeliveryInfo = {
@@ -49,6 +51,13 @@ export default function CheckoutPage() {
   const deliveryFee = 4.99;
   const tax = subtotal * 0.08;
   const total = subtotal + deliveryFee + tax;
+
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!isCustomerUser(user)) {
+      router.replace("/login-register");
+    }
+  }, [router]);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -129,7 +138,8 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-zinc-100 px-6 py-10 text-black">
-      <div className="mx-auto max-w-6xl">
+      <Navbar alwaysFrosted />
+      <div className="mx-auto max-w-6xl pt-24">
         <h1 className="mb-8 text-4xl font-bold">Checkout</h1>
 
         <div className="grid gap-8 md:grid-cols-2">

@@ -1,5 +1,7 @@
 "use client";
 
+import EmployeeSidebar from "@/components/EmployeeSidebar";
+
 const ORDERS = [
   {
     id: 12345,
@@ -142,12 +144,14 @@ function OrderCard({ order }: { order: typeof ORDERS[0] }) {
 
 export default function OrdersPage() {
   return (
-    <div className="min-h-screen bg-cream font-dm relative">
+    <div className="min-h-screen bg-cream font-dm relative flex">
       {/* Background gradients */}
       <div className="pointer-events-none fixed top-[-10%] left-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.18)_0%,transparent_65%)] -z-10" />
       <div className="pointer-events-none fixed bottom-[-10%] right-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.10)_0%,transparent_65%)] -z-10" />
 
-      <main className="mx-auto max-w-7xl px-8 pb-16 pt-28">
+      <EmployeeSidebar active="orders" />
+
+      <main className="mx-auto max-w-7xl px-8 pb-16 pt-28 flex-1">
         <div className="mb-10">
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-sage">
             OFS Orders

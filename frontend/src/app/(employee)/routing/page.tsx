@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import EmployeeSidebar from "@/components/EmployeeSidebar";
 import { DeliveryRoutes } from "@/components/DeliveryRoutes";
 import { SuggestedRoutes } from "@/components/SuggestedRoutes";
 import { ActiveDeliveryCard } from "@/components/ActiveDeliveryCard";
@@ -19,8 +20,6 @@ import {
   startSimulation,
   startTrip,
 } from "@/lib/api-service";
-import Link from "next/dist/client/link";
-
 export default function DeliveryDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
@@ -192,12 +191,13 @@ export default function DeliveryDashboardPage() {
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen flex"
       style={{
         background: "var(--color-cream)",
         fontFamily: "'DM Sans', sans-serif",
       }}
     >
+      <EmployeeSidebar active="routing" />
       <main className="w-full px-4 py-6 md:px-6">
         <div className="flex flex-col lg:flex-row gap-5">
           <div className="w-full lg:w-80 flex-shrink-0 lg:h-[calc(100vh-5.5rem)] lg:sticky lg:top-6">
@@ -248,12 +248,6 @@ export default function DeliveryDashboardPage() {
             )}
           </div>
         </div>
-        <Link
-          href="/empdashboard"
-          className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-        >
-          ← Back to Dashboard
-        </Link>
       </main>
     </div>
   );
