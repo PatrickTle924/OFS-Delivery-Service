@@ -24,7 +24,6 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("Employee");
   const [orders, setOrders] = useState<Order[]>([]);
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     //placeholder
@@ -84,16 +83,14 @@ export default function DashboardPage() {
       if (!response.ok) {
         throw new Error("Failed to fetch inventory");
       }
-      const data = await response.json();
+      const data = (await response.json()) as LowStockItem[];
       const lowStock = data.filter(
-        (item: any) => item.quantity <= item.reorderLevel,
+        (item) => item.quantity <= item.reorderLevel,
       );
       setLowStockItems(lowStock);
     } catch (error) {
       console.error("Failed to fetch inventory:", error);
       setLowStockItems([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -272,7 +269,7 @@ export default function DashboardPage() {
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-playfair text-xl text-forest">
-                  Today's Orders
+                  Today&apos;s Orders
                 </h2>
                 <Link
                   href="/orders"
