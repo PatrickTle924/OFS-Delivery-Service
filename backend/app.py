@@ -10,7 +10,7 @@ import enum
 import os
 from datetime import timezone
 from sqlalchemy import text, Enum
-from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product
+from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report
 from database import db
 import time
 import requests
@@ -930,6 +930,75 @@ def get_order_history():
         }
         for o in orders
     ]), 200
+
+@app.route('/reports', methods=['POST'])
+def create_report():
+    data = request.get_json()
+
+    order_id = data.get('order_id')
+    customer_id = data.get('customer_id')
+    report_type = data.get('report_type', '').strip()
+    description = data.get('description', '').strip()
+
+    if not all([order_id, customer_id, report_type, description]):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    order = Order.query.get(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
+    if order.customer_id != customer_id:
+        return jsonify({"error": "Order does not belong to this customer"}), 403
+
+    report = Report(
+        order_id=order_id,
+        customer_id=customer_id,
+        report_type=report_type,
+        description=description,
+        status="open",
+    )
+
+    db.session.add(report)
+    db.session.commit()
+
+    return jsonify({"message": "Report submitted successfully", "report_id": report.report_id}), 201
+
+
+@app.route('/reports', methods=['GET'])
+def get_reports():
+    reports = Report.query.order_by(Report.created_at.desc()).all()
+
+    return jsonify([
+        {
+            "report_id": r.report_id,
+            "order_id": r.order_id,
+            "customer_id": r.customer_id,
+            "report_type": r.report_type,
+            "description": r.description,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in reports
+    ]), 200
+
+
+@app.route('/reports/<int:report_id>', methods=['PUT'])
+def update_report(report_id):
+    report = Report.query.get(report_id)
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    data = request.get_json()
+    new_status = data.get('status', '').strip()
+
+    if new_status not in ("open", "in_review", "resolved"):
+        return jsonify({"error": "Invalid status"}), 400
+
+    report.status = new_status
+    db.session.commit()
+
+    return jsonify({"message": "Report updated successfully"}), 200
+
 
 # for local development without Docker
 if __name__ == '__main__':
