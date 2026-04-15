@@ -74,8 +74,11 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
 
+      const user = JSON.parse(localStorage.getItem("ofsUser") || "null");
+
       const payload = {
         customerName: deliveryInfo.fullName,
+        userId: user?.id,
         items: cart,
         deliveryInfo,
         subtotal,

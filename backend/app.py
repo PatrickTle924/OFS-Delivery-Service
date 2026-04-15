@@ -132,6 +132,21 @@ def get_orders():
         for o in orders
     ])
 
+@app.route('/orders/', methods=['POST'])
+def create_order():
+    data = request.get_json()
+
+    user_id = data.get("userId")
+
+    if not user_id:
+        return jsonify({"error": "Missing user"}), 400
+    
+    
+
+
+    
+
+
 
 def build_v1_coordinates(selected_orders):
     coords = [f"{WAREHOUSE['coordinates'][0]},{WAREHOUSE['coordinates'][1]}"]
