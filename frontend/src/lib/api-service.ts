@@ -1,4 +1,5 @@
 import { RegisterInput, LoginInput, UserRole } from "@/types/auth";
+import type { ActiveDelivery } from "@/types/routing";
 import { Product } from "@/types/shop";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL; //will change later when Flask set up
 
@@ -117,7 +118,7 @@ export async function advanceTrip(tripId: number) {
 
 export function startSimulation(
   tripId: number,
-  onUpdate: (activeDelivery: any) => void,
+  onUpdate: (activeDelivery: ActiveDelivery | null) => void,
   onComplete?: () => void,
   intervalMs: number = 1000,
 ) {
