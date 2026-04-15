@@ -15,7 +15,7 @@ interface InventoryItem {
   lastRestocked: string;
 }
 
-const CATEGORIES = ["fruits", "vegetables", "produce", "meat"];
+const CATEGORIES = ["fruits", "vegetables", "meats", "dairy", "bakery", "pantry"];
 
 export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -92,45 +92,6 @@ export default function InventoryPage() {
       [name]: name === "quantity" || name === "price" || name === "reorderLevel" ? parseFloat(value) : value,
     }));
   };
-
-//   const handleSaveItem = async () => {
-//   if (!formData.name) {
-//     alert("Please fill in all required fields");
-//     return;
-//   }
-
-//   try {
-//     if (editingItem) {
-//       const response = await fetch(`http://localhost:5000/products/${editingItem.id}`, {
-//         method: "PUT",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//         body: JSON.stringify({
-//           name: formData.name,
-//           description: "",
-//           category: formData.category,
-//           quantity: formData.quantity,
-//           weight: formData.weight,
-//           price: formData.price,
-//         }),
-//       });
-
-//       if (!response.ok) {
-//         throw new Error("Failed to update product");
-//       }
-
-//       await fetchInventory();
-//     } else {
-//       alert("Add item is still frontend-only right now.");
-//     }
-
-//     handleCloseModal();
-//   } catch (error) {
-//     console.error("Failed to save item:", error);
-//     alert("Failed to save item");
-//   }
-// };
 
 
 const handleSaveItem = async () => {
