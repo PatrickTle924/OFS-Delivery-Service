@@ -115,7 +115,9 @@ export default function CheckoutPage() {
       setSuccessMessage(
         `Order placed successfully! Order ID: ${result.id ?? "Created"}`,
       );
-      router.push("/user/browse");
+      clearCart(); 
+      localStorage.removeItem("ofs-cart");
+      router.push("/user/order-history");
     } catch (error) {
       console.error(error);
       //setErrorMessage("Failed to place order. Please try again.");
