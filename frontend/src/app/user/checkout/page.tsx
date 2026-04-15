@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useCart } from "@/context/CartContext";
+
 
 type CartItem = {
   id: number;
@@ -20,11 +22,15 @@ type DeliveryInfo = {
 };
 
 export default function CheckoutPage() {
-  const [cartItems] = useState<CartItem[]>([
-    { id: 1, name: "Apples", price: 12.99, quantity: 1 },
-    { id: 2, name: " Oranges", price: 3.99, quantity: 2 },
-    { id: 3, name: "Chicken ", price: 14.5, quantity: 1 },
-  ]);
+    const {
+    cart,
+    totalItems,
+    totalPrice,
+    addToCart,
+    removeOne,
+    removeFromCart,
+    clearCart,
+  } = useCart();
 
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     fullName: "",
