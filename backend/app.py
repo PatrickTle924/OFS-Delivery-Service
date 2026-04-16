@@ -797,6 +797,45 @@ def health():
         "message": "Backend is running"
     }), 200
 
+@app.route('/orders/<int:order_id>', methods=['GET'])
+def get_order_details(order_id):
+    order = Order.query.get(order_id)
+    
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+    
+    return jsonify({
+        "order_id": order.order_id,
+        "ordered_at": order.ordered_at.isoformat() if order.ordered_at else None,
+        "total_cost": order.total_cost,
+        "subtotal": order.subtotal,
+        "delivery_fee": order.delivery_fee,
+        "status": order.status,
+        "delivery_address": order.delivery_address,
+        "delivery_city": order.delivery_city,
+        "delivery_state": order.delivery_state,
+        "delivery_zip": order.delivery_zip,
+        "items": [
+            {
+                "product": {
+                    "id": item.product.product_id,
+                    "name": item.product.name,
+                    "category": item.product.category,
+                    "price": item.product.cost,
+                    "weight": item.product.weight,
+                    "stock": item.product.stock,
+                    "description": item.product.description,
+                    "imageUrl": item.product.image_url or ""
+                },
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "unit_weight": item.unit_weight,
+                "subtotal": item.quantity * item.unit_price
+            }
+            for item in order.order_items
+        ]
+    }), 200
+
 @app.route('/orders/history', methods=['GET'])
 def get_order_history():
     orders = Order.query.order_by(Order.ordered_at.desc()).all()
