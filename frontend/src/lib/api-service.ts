@@ -1,6 +1,7 @@
 import { RegisterInput, LoginInput, UserRole } from "@/types/auth";
 import { Product } from "@/types/shop";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL; //will change later when Flask set up
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export interface AuthResponse {
   message: string;
@@ -11,7 +12,7 @@ export interface AuthResponse {
     email: string;
     role: UserRole;
   };
-  token?: string; // add JWT logic later
+  token?: string;
 }
 
 export interface ProfileResponse {
@@ -26,17 +27,38 @@ export interface ProfileResponse {
 }
 
 export interface ChangePasswordInput {
-  email: string;
   currentPassword: string;
   newPassword: string;
 }
 
+export interface OrderHistoryItem {
+  order_id: number;
+  ordered_at: string | null;
+  total_cost: number;
+  status: string;
+  item_count: number;
+  delivery_address: string;
+  total_weight: number;
+}
+
+const getToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token");
+};
+
+const getAuthHeaders = (): HeadersInit => {
+  const token = getToken();
+
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
 export async function optimizeRoutes(orderIds: number[]) {
   const res = await fetch(`${API_BASE_URL}/optimize-routes`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ orderIds }),
   });
 
@@ -61,9 +83,7 @@ export async function approveRoute(payload: {
 }) {
   const res = await fetch(`${API_BASE_URL}/approve-route`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -77,7 +97,10 @@ export async function approveRoute(payload: {
 }
 
 export async function fetchActiveDelivery() {
-  const res = await fetch(`${API_BASE_URL}/active-delivery`);
+  const res = await fetch(`${API_BASE_URL}/active-delivery`, {
+    headers: getAuthHeaders(),
+  });
+
   const data = await res.json();
 
   if (!res.ok) {
@@ -90,6 +113,7 @@ export async function fetchActiveDelivery() {
 export async function startTrip(tripId: number) {
   const res = await fetch(`${API_BASE_URL}/start-trip/${tripId}`, {
     method: "POST",
+    headers: getAuthHeaders(),
   });
 
   const data = await res.json();
@@ -104,6 +128,7 @@ export async function startTrip(tripId: number) {
 export async function advanceTrip(tripId: number) {
   const res = await fetch(`${API_BASE_URL}/trip-progress/${tripId}`, {
     method: "POST",
+    headers: getAuthHeaders(),
   });
 
   const data = await res.json();
@@ -141,7 +166,10 @@ export function startSimulation(
 }
 
 export async function fetchOrders() {
-  const res = await fetch(`${API_BASE_URL}/orders`);
+  const res = await fetch(`${API_BASE_URL}/orders`, {
+    headers: getAuthHeaders(),
+  });
+
   const data = await res.json();
 
   if (!res.ok) {
@@ -152,30 +180,37 @@ export async function fetchOrders() {
 }
 
 export const fetchProducts = async (): Promise<Product[]> => {
-  const response = await fetch(`${API_BASE_URL}/products`);
-  if (!response.ok) throw new Error("Failed to fetch products");
-  return response.json();
+  const response = await fetch(`${API_BASE_URL}/products`, {
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to fetch products");
+  }
+
+  return data;
 };
 
-// auth services
 export const registerUser = async (
   data: RegisterInput,
 ): Promise<{ message: string }> => {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/register`, {
+  const response = await fetch(`${API_BASE_URL}/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 
+  const result = await response.json();
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Registration failed");
+    throw new Error(result.error || "Registration failed");
   }
 
-  return response.json();
+  return result;
 };
 
-//new func to allow users to log in
 export const loginUser = async (
   credentials: LoginInput,
 ): Promise<AuthResponse> => {
@@ -184,23 +219,54 @@ export const loginUser = async (
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
   });
-  if (!res.ok) throw new Error("Invalid credentials");
-  return res.json();
-};
 
-export const fetchUserProfile = async (
-  email: string,
-): Promise<ProfileResponse> => {
-  const response = await fetch(
-    `${API_BASE_URL}/profile?email=${encodeURIComponent(email)}`,
-  );
+  const data = await res.json();
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(error?.error || "Failed to fetch profile");
+  if (!res.ok) {
+    throw new Error(data.error || "Invalid credentials");
   }
 
-  return response.json();
+  if (typeof window !== "undefined") {
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+    }
+
+    if (data.user) {
+      localStorage.setItem("user", JSON.stringify(data.user));
+    }
+  }
+
+  return data;
+};
+
+export const fetchUserProfile = async (): Promise<ProfileResponse> => {
+  const response = await fetch(`${API_BASE_URL}/profile`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to fetch profile");
+  }
+
+  return data;
+};
+
+export const fetchOrderHistory = async (): Promise<OrderHistoryItem[]> => {
+  const response = await fetch(`${API_BASE_URL}/orders/history`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to fetch order history");
+  }
+
+  return data;
 };
 
 export const changePassword = async (
@@ -208,14 +274,37 @@ export const changePassword = async (
 ): Promise<{ message: string }> => {
   const response = await fetch(`${API_BASE_URL}/change-password`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
 
+  const result = await response.json();
+
   if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(error?.error || "Failed to change password");
+    throw new Error(result.error || "Failed to change password");
   }
 
-  return response.json();
+  return result;
+};
+
+export async function fetchInventory() {
+  const res = await fetch(`${API_BASE_URL}/inventory`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to fetch inventory");
+  }
+
+  return data;
+}
+
+export const logoutUser = () => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  }
 };

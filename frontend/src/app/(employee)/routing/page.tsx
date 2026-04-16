@@ -20,6 +20,7 @@ import {
   startTrip,
 } from "@/lib/api-service";
 import Link from "next/dist/client/link";
+import EmployeeRoute from "@/components/EmployeeRoute";
 
 export default function DeliveryDashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -191,70 +192,72 @@ export default function DeliveryDashboardPage() {
   };
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: "var(--color-cream)",
-        fontFamily: "'DM Sans', sans-serif",
-      }}
-    >
-      <main className="w-full px-4 py-6 md:px-6">
-        <div className="flex flex-col lg:flex-row gap-5">
-          <div className="w-full lg:w-80 flex-shrink-0 lg:h-[calc(100vh-5.5rem)] lg:sticky lg:top-6">
-            {loadingOrders ? (
-              <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm">
-                Loading orders...
-              </div>
-            ) : (
-              <DeliveryRoutes
-                orders={orders}
-                onGenerateRoutes={handleGenerateRoutes}
-              />
-            )}
+    <EmployeeRoute>
+      <div
+        className="min-h-screen"
+        style={{
+          background: "var(--color-cream)",
+          fontFamily: "'DM Sans', sans-serif",
+        }}
+      >
+        <main className="w-full px-4 py-6 md:px-6">
+          <div className="flex flex-col lg:flex-row gap-5">
+            <div className="w-full lg:w-80 flex-shrink-0 lg:h-[calc(100vh-5.5rem)] lg:sticky lg:top-6">
+              {loadingOrders ? (
+                <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm">
+                  Loading orders...
+                </div>
+              ) : (
+                <DeliveryRoutes
+                  orders={orders}
+                  onGenerateRoutes={handleGenerateRoutes}
+                />
+              )}
+            </div>
+
+            <div className="flex-1 flex flex-col gap-5">
+              {loadingRoutes && (
+                <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm">
+                  Generating optimized route...
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              {completionMessage && (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                  {completionMessage}
+                </div>
+              )}
+
+              {activeDelivery && activeDelivery.tripId && (
+                <ActiveDeliveryCard
+                  delivery={activeDelivery}
+                  onTrack={handleTrackRobot}
+                />
+              )}
+
+              {routes.length > 0 && approvedRoutePreview && (
+                <SuggestedRoutes
+                  routes={routes}
+                  routePreview={approvedRoutePreview}
+                  onApprove={handleApprove}
+                />
+              )}
+            </div>
           </div>
-
-          <div className="flex-1 flex flex-col gap-5">
-            {loadingRoutes && (
-              <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm">
-                Generating optimized route...
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            {completionMessage && (
-              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-                {completionMessage}
-              </div>
-            )}
-
-            {activeDelivery && activeDelivery.tripId && (
-              <ActiveDeliveryCard
-                delivery={activeDelivery}
-                onTrack={handleTrackRobot}
-              />
-            )}
-
-            {routes.length > 0 && approvedRoutePreview && (
-              <SuggestedRoutes
-                routes={routes}
-                routePreview={approvedRoutePreview}
-                onApprove={handleApprove}
-              />
-            )}
-          </div>
-        </div>
-        <Link
-          href="/empdashboard"
-          className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-        >
-          ← Back to Dashboard
-        </Link>
-      </main>
-    </div>
+          <Link
+            href="/empdashboard"
+            className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
+          >
+            ← Back to Dashboard
+          </Link>
+        </main>
+      </div>
+    </EmployeeRoute>
   );
 }

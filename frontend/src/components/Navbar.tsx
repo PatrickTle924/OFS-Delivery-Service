@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 interface NavbarProps {
   alwaysFrosted?: boolean;
@@ -9,57 +10,51 @@ interface NavbarProps {
   onCartClick?: () => void;
 }
 
-interface StoredUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-}
-
 const IconCart = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="w-5 h-5"
+  >
+    <circle cx="9" cy="21" r="1" />
+    <circle cx="20" cy="21" r="1" />
+    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
   </svg>
 );
 
-export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartClick }: NavbarProps) {
+export default function Navbar({
+  alwaysFrosted = false,
+  cartItemCount,
+  onCartClick,
+}: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
-  const [user, setUser] = useState<StoredUser | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (alwaysFrosted) return;
+
     const handleScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", handleScroll);
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, [alwaysFrosted]);
 
-  useEffect(() => {
-    const loadUser = () => {
-      try {
-        const storedUser = window.localStorage.getItem("ofsUser");
-        setUser(storedUser ? (JSON.parse(storedUser) as StoredUser) : null);
-      } catch {
-        setUser(null);
-      }
-    };
-
-    loadUser();
-    window.addEventListener("storage", loadUser);
-    window.addEventListener("ofs-auth-changed", loadUser);
-
-    return () => {
-      window.removeEventListener("storage", loadUser);
-      window.removeEventListener("ofs-auth-changed", loadUser);
-    };
-  }, []);
-
   const frosted = alwaysFrosted || scrolled;
-  const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "U";
+  const initials =
+    `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() ||
+    "U";
+
+  const profileHref =
+    user?.role === "employee" ? "/empdashboard" : "/user/profile";
 
   const profileLink = user ? (
     <Link
-      href="/user/profile"
+      href={profileHref}
       aria-label="Open profile"
       title={user.firstName ? `${user.firstName}'s profile` : "Open profile"}
       className="flex items-center gap-3"
@@ -80,10 +75,15 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5 transition-all duration-500 ${
-        frosted ? "bg-cream/80 backdrop-blur-xl shadow-sm shadow-forest/5" : "bg-transparent"
+        frosted
+          ? "bg-cream/80 backdrop-blur-xl shadow-sm shadow-forest/5"
+          : "bg-transparent"
       }`}
     >
-      <Link href="/" className="font-playfair text-2xl text-forest tracking-tight">
+      <Link
+        href="/"
+        className="font-playfair text-2xl text-forest tracking-tight"
+      >
         OFS<span className="text-clay italic">.</span>
       </Link>
 
@@ -106,10 +106,16 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
           </>
         ) : (
           <>
-            <Link href="/#how-it-works" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
+            <Link
+              href="/#how-it-works"
+              className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+            >
               How It Works
             </Link>
-            <Link href="/#features" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
+            <Link
+              href="/#features"
+              className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+            >
               Features
             </Link>
             {profileLink}

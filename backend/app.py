@@ -1,32 +1,58 @@
-# flask file
-
 import os
+import json
+import requests
+from functools import wraps
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-import uuid
-import enum
-import os
-from datetime import timezone
-from sqlalchemy import text, Enum
+from flask_jwt_extended import (
+    JWTManager,
+    create_access_token,
+    get_jwt,
+    get_jwt_identity,
+    jwt_required,
+)
+from sqlalchemy import text
+
 from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product
 from database import db
-import time
-import requests
-import json
-from datetime import datetime
-
 
 app = Flask(__name__)
-CORS(app) # Allow Next.js to communicate with Flask
-# kept main 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:password@db:5432/delivery_db')
-# Connect the db instance to our flask app
+CORS(app)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL',
+    'postgresql://user:password@db:5432/delivery_db'
+)
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret-change-me")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 60 * 60 * 24  # 24 hours
+
 db.init_app(app)
+jwt = JWTManager(app)
 
 
 MAPBOX_ACCESS_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
+
+def role_required(*allowed_roles):
+    def decorator(fn):
+        @wraps(fn)
+        @jwt_required()
+        def wrapper(*args, **kwargs):
+            claims = get_jwt()
+            user_role = claims.get("role")
+
+            if user_role not in allowed_roles:
+                return jsonify({"error": "Access denied"}), 403
+
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def get_current_user():
+    user_id = get_jwt_identity()
+    return User.query.get(user_id)
 
 MOCK_PRODUCTS = [
     {
@@ -175,6 +201,30 @@ MOCK_PRODUCTS = [
     },
 ]
 
+@app.route("/change-password", methods=["POST"])
+@jwt_required()
+def change_password():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    data = request.get_json()
+    current_password = data.get("currentPassword")
+    new_password = data.get("newPassword")
+
+    if not current_password or not new_password:
+        return jsonify({"error": "Both current and new passwords are required"}), 400
+
+    if not user.check_password(current_password):
+        return jsonify({"error": "Current password is incorrect"}), 400
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    return jsonify({"message": "Password changed successfully"}), 200
+
 
 def seed_products():
     for item in MOCK_PRODUCTS:
@@ -219,6 +269,8 @@ with app.app_context():
         print(f"❌ Error initializing database: {e}")
 
 @app.route('/products', methods=['GET'])
+@jwt_required()
+
 def get_products():
     products = Product.query.order_by(Product.product_id.asc()).all()
     return jsonify([
@@ -282,12 +334,26 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
+
+    if not data or not data.get("email") or not data.get("password"):
+        return jsonify({"error": "Email and password are required"}), 400
+
     user = User.query.filter_by(email=data['email']).first()
-    
+
     if user and user.check_password(data['password']):
-        # generate JWT here, eventually
+        access_token = create_access_token(
+            identity=user.id,
+            additional_claims={
+                "role": user.role.value,
+                "email": user.email,
+                "firstName": user.first_name,
+                "lastName": user.last_name,
+            }
+        )
+
         return jsonify({
             "message": "Login successful",
+            "token": access_token,
             "user": {
                 "id": user.id,
                 "firstName": user.first_name,
@@ -296,11 +362,12 @@ def login():
                 "role": user.role.value,
             }
         }), 200
-        
+
     return jsonify({"error": "Invalid credentials"}), 401
 
 
 @app.route('/orders', methods=['GET'])
+@role_required("employee")
 def get_orders():
     orders = Order.query.filter_by(status="pending").all()
 
@@ -458,6 +525,7 @@ def transform_v1_solution_for_frontend(selected_orders, solution):
     }
 
 @app.route("/optimize-routes", methods=["POST"])
+@role_required("employee")
 def optimize_routes():
     data = request.get_json()
     selected_order_ids = data.get("orderIds", [])
@@ -604,6 +672,7 @@ def build_active_delivery_from_trip(trip):
     return {"activeDelivery": active_delivery}
 
 @app.route("/approve-route", methods=["POST"])
+@role_required("employee")
 def approve_route():
     data = request.get_json()
 
@@ -652,8 +721,8 @@ def approve_route():
 
     return jsonify({"activeDelivery": build_active_delivery_from_trip(new_trip)["activeDelivery"]}), 201
 
-
 @app.route("/active-delivery", methods=["GET"])
+@role_required("employee")
 def get_active_delivery():
     active_trip = (
         Trip.query.filter(Trip.status.in_(["assigned", "in_progress"]))
@@ -666,8 +735,8 @@ def get_active_delivery():
 
     return jsonify(build_active_delivery_from_trip(active_trip)), 200
 
-
 @app.route("/start-trip/<int:trip_id>", methods=["POST"])
+@role_required("employee")
 def start_trip(trip_id):
     trip = Trip.query.get(trip_id)
     if not trip:
@@ -699,10 +768,12 @@ def start_trip(trip_id):
 
     return jsonify({"message": "Trip started"}), 200
 
-def is_near(lng1, lat1, lng2, lat2, threshold=0.0005):
+def is_near(lng1, lat1, lng2, lat2, threshold=0.0001):
     return abs(lng1 - lng2) <= threshold and abs(lat1 - lat2) <= threshold
 
+
 @app.route("/trip-progress/<int:trip_id>", methods=["POST"])
+@role_required("employee")
 def advance_trip_progress(trip_id):
     trip = Trip.query.get(trip_id)
     if not trip:
@@ -772,13 +843,10 @@ def advance_trip_progress(trip_id):
 
 
 @app.route('/profile', methods=['GET'])
+@jwt_required()
 def get_profile():
-    email = request.args.get('email', '').strip().lower()
-
-    if not email:
-        return jsonify({"error": "Email is required"}), 400
-
-    user = User.query.filter(db.func.lower(User.email) == email).first()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
 
     if not user:
         return jsonify({"error": "User not found"}), 404
@@ -787,7 +855,7 @@ def get_profile():
     created_at = user.created_at.astimezone(timezone.utc) if user.created_at else None
 
     return jsonify({
-        "id": user.id,  
+        "id": user.id,
         "firstName": user.first_name,
         "lastName": user.last_name,
         "email": user.email,
@@ -797,7 +865,25 @@ def get_profile():
         "role": user.role.value,
     }), 200
 
+@app.route("/me", methods=["GET"])
+@jwt_required()
+def me():
+    user = get_current_user()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "id": user.id,
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "email": user.email,
+        "role": user.role.value,
+    }), 200
+
 @app.route('/inventory', methods=['GET'])
+@role_required("employee")
+
 def get_inventory():
     products = Product.query.all()
 
@@ -825,6 +911,8 @@ def get_inventory():
     ]), 200
 
 @app.route('/products/<int:product_id>', methods=['PUT'])
+@role_required("employee")
+
 def update_product(product_id):
     product = Product.query.get(product_id)
 
@@ -866,6 +954,8 @@ def update_product(product_id):
     }), 200
 
 @app.route("/products/<int:product_id>", methods=["DELETE"])
+@role_required("employee")
+
 def delete_product(product_id):
     try:
         product = Product.query.get(product_id)
@@ -883,6 +973,8 @@ def delete_product(product_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/products", methods=["POST"])
+@role_required("employee")
+
 def create_product():
     try:
         data = request.get_json()
@@ -917,8 +1009,23 @@ def health():
     }), 200
 
 @app.route('/orders/history', methods=['GET'])
+@jwt_required()
 def get_order_history():
-    orders = Order.query.order_by(Order.ordered_at.desc()).all()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if not user.customer_profile:
+        return jsonify({"error": "Only customers have order history"}), 403
+
+    orders = (
+        Order.query
+        .filter_by(customer_id=user.customer_profile.id)
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
 
     return jsonify([
         {
@@ -926,7 +1033,9 @@ def get_order_history():
             "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
             "total_cost": o.total_cost,
             "status": o.status,
-            "item_count": len(o.order_items)
+            "item_count": len(o.order_items),
+            "delivery_address": o.delivery_address,
+            "total_weight": o.total_weight,
         }
         for o in orders
     ]), 200
@@ -934,6 +1043,5 @@ def get_order_history():
 # for local development without Docker
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
 
 
