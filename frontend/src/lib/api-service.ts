@@ -1,4 +1,5 @@
 import { RegisterInput, LoginInput, UserRole } from "@/types/auth";
+import type { ActiveDelivery } from "@/types/routing";
 import { Product } from "@/types/shop";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -142,7 +143,7 @@ export async function advanceTrip(tripId: number) {
 
 export function startSimulation(
   tripId: number,
-  onUpdate: (activeDelivery: any) => void,
+  onUpdate: (activeDelivery: ActiveDelivery | null) => void,
   onComplete?: () => void,
   intervalMs: number = 1000,
 ) {
@@ -307,4 +308,14 @@ export const logoutUser = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
   }
+};
+
+export const fetchOrderDetails = async (orderId: number) => {
+  const response = await fetch(`${API_BASE_URL}/orders/${orderId}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch order details");
+  }
+
+  return response.json();
 };

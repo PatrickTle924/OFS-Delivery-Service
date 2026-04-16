@@ -18,28 +18,28 @@ function normalizeStatus(status: string): OrderData["status"] {
   return "pending";
 }
 
+function mapOrder(order: OrderHistoryItem): OrderData {
+  return {
+    order_id: order.order_id,
+    ordered_at: order.ordered_at ?? "",
+    total_cost: order.total_cost,
+    status: normalizeStatus(order.status),
+    item_count: order.item_count,
+  };
+}
+
 export default function OrderHistoryPage() {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrders() {
       try {
-        const data: OrderHistoryItem[] = await fetchOrderHistory();
-
-        const mappedOrders: OrderData[] = data.map((order) => ({
-          order_id: order.order_id,
-          ordered_at: order.ordered_at ?? new Date().toISOString(),
-          total_cost: order.total_cost,
-          status: normalizeStatus(order.status),
-          item_count: order.item_count,
-        }));
-
-        setOrders(mappedOrders);
-      } catch (err) {
-        console.error("Error fetching orders:", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch orders");
+        const data = await fetchOrderHistory();
+        setOrders(data.map(mapOrder));
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        setOrders([]);
       } finally {
         setLoading(false);
       }
@@ -71,8 +71,6 @@ export default function OrderHistoryPage() {
 
           {loading ? (
             <p className="text-forest/60">Loading orders...</p>
-          ) : error ? (
-            <p className="text-red-600">{error}</p>
           ) : (
             <div className="flex flex-col gap-4 overflow-y-auto max-h-[70vh] pr-2 scrollbar-thin scrollbar-thumb-sage/20 scrollbar-track-transparent">
               {orders.map((order) => (

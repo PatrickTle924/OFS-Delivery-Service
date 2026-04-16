@@ -14,8 +14,9 @@ from flask_jwt_extended import (
     jwt_required,
 )
 from sqlalchemy import text
-
-from models import User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product
+import os
+from datetime import timezone
+from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report
 from database import db
 
 app = Flask(__name__)
@@ -388,6 +389,70 @@ def get_orders():
         }
         for o in orders
     ])
+
+@app.route('/orders', methods=['POST'])
+@jwt_required()
+def create_order():
+    data = request.get_json()
+
+    delivery_info = data.get("deliveryInfo", {})
+    items = data.get("items", [])
+
+    if not items:
+        return jsonify({"error": "No items in order"}), 400
+    
+    user_id = get_jwt_identity()
+
+    customer = CustomerProfile.query.filter_by(user_id=user_id).first()
+
+    if not customer:
+        return jsonify({"error": "Customer profile not found"}), 400
+
+    customer_id = customer.id
+
+    try:
+        #TODO: update the null inputs later with actual data from frontend
+        new_order = Order(
+            customer_id=customer_id,
+            delivery_address=delivery_info.get("addressLine1", ""),
+            delivery_city=delivery_info.get("city", ""),
+            delivery_zip=delivery_info.get("zipCode", ""),
+            subtotal=data.get("subtotal", 0),
+            total_weight=data.get("total_weight", 0),
+            delivery_fee=data.get("deliveryFee", 0),
+            total_cost=data.get("total", 0)
+        )
+
+        db.session.add(new_order)
+        db.session.flush()
+
+        for i in items:
+            product = Product.query.get(i["product"]["id"])
+            if not product:
+                db.session.rollback()
+                return jsonify({"error": f"Product with id {i['product']['id']} not found"}), 400   
+            if product.stock < i["quantity"]:
+                db.session.rollback()
+                return jsonify({"error": f"Not enough stock for product {product.name}"}), 400      
+            product.stock -= i["quantity"]
+
+            order_item = OrderItem(
+                    order_id=new_order.order_id,
+                    product_id=i["product"]["id"],
+                    quantity=i["quantity"],
+                    unit_price=product.cost,
+                    unit_weight=product.weight
+                )                   
+            
+            db.session.add(order_item)
+
+        db.session.commit()
+
+
+        return jsonify({"message": "Order created", "order_id": new_order.order_id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500        
 
 
 def build_v1_coordinates(selected_orders):
@@ -881,6 +946,7 @@ def me():
         "role": user.role.value,
     }), 200
 
+
 @app.route('/inventory', methods=['GET'])
 @role_required("employee")
 
@@ -909,6 +975,8 @@ def get_inventory():
         }
         for product in products
     ]), 200
+
+
 
 @app.route('/products/<int:product_id>', methods=['PUT'])
 @role_required("employee")
@@ -1008,6 +1076,45 @@ def health():
         "message": "Backend is running"
     }), 200
 
+@app.route('/orders/<int:order_id>', methods=['GET'])
+def get_order_details(order_id):
+    order = Order.query.get(order_id)
+    
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+    
+    return jsonify({
+        "order_id": order.order_id,
+        "ordered_at": order.ordered_at.isoformat() if order.ordered_at else None,
+        "total_cost": order.total_cost,
+        "subtotal": order.subtotal,
+        "delivery_fee": order.delivery_fee,
+        "status": order.status,
+        "delivery_address": order.delivery_address,
+        "delivery_city": order.delivery_city,
+        "delivery_state": order.delivery_state,
+        "delivery_zip": order.delivery_zip,
+        "items": [
+            {
+                "product": {
+                    "id": item.product.product_id,
+                    "name": item.product.name,
+                    "category": item.product.category,
+                    "price": item.product.cost,
+                    "weight": item.product.weight,
+                    "stock": item.product.stock,
+                    "description": item.product.description,
+                    "imageUrl": item.product.image_url or ""
+                },
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "unit_weight": item.unit_weight,
+                "subtotal": item.quantity * item.unit_price
+            }
+            for item in order.order_items
+        ]
+    }), 200
+
 @app.route('/orders/history', methods=['GET'])
 @jwt_required()
 def get_order_history():
@@ -1039,6 +1146,77 @@ def get_order_history():
         }
         for o in orders
     ]), 200
+
+@app.route('/reports', methods=['POST'])
+@role_required("customer")
+def create_report():
+    data = request.get_json()
+
+    order_id = data.get('order_id')
+    customer_id = data.get('customer_id')
+    report_type = data.get('report_type', '').strip()
+    description = data.get('description', '').strip()
+
+    if not all([order_id, customer_id, report_type, description]):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    order = Order.query.get(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
+    if order.customer_id != customer_id:
+        return jsonify({"error": "Order does not belong to this customer"}), 403
+
+    report = Report(
+        order_id=order_id,
+        customer_id=customer_id,
+        report_type=report_type,
+        description=description,
+        status="open",
+    )
+
+    db.session.add(report)
+    db.session.commit()
+
+    return jsonify({"message": "Report submitted successfully", "report_id": report.report_id}), 201
+
+@app.route('/reports', methods=['GET'])
+@role_required("employee")
+def get_reports():
+    reports = Report.query.order_by(Report.created_at.desc()).all()
+
+    return jsonify([
+        {
+            "report_id": r.report_id,
+            "order_id": r.order_id,
+            "customer_id": r.customer_id,
+            "report_type": r.report_type,
+            "description": r.description,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in reports
+    ]), 200
+
+
+@app.route('/reports/<int:report_id>', methods=['PUT'])
+@role_required("employee")
+def update_report(report_id):
+    report = Report.query.get(report_id)
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    data = request.get_json()
+    new_status = data.get('status', '').strip()
+
+    if new_status not in ("open", "in_review", "resolved"):
+        return jsonify({"error": "Invalid status"}), 400
+
+    report.status = new_status
+    db.session.commit()
+
+    return jsonify({"message": "Report updated successfully"}), 200
+
 
 # for local development without Docker
 if __name__ == '__main__':

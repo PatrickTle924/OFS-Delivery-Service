@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import EmployeeRoute from "@/components/EmployeeRoute";
 import { useAuth } from "@/context/AuthContext";
 import { fetchInventory } from "@/lib/api-service";
+import EmployeeSidebar from "@/components/EmployeeSidebar";
 
 interface Order {
   id: string;
@@ -23,8 +23,7 @@ interface LowStockItem {
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
 
   const [userName, setUserName] = useState("Employee");
   const [orders, setOrders] = useState<Order[]>([]);
@@ -34,8 +33,8 @@ export default function DashboardPage() {
   const fetchInventoryData = async () => {
     try {
       const data = await fetchInventory();
-      const lowStock = data.filter(
-        (item: any) => item.quantity <= item.reorderLevel,
+      const lowStock = (data as LowStockItem[]).filter(
+        (item) => item.quantity <= item.reorderLevel,
       );
       setLowStockItems(lowStock);
     } catch (error) {
@@ -85,7 +84,7 @@ export default function DashboardPage() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", fetchInventoryData);
-    const interval = setInterval(fetchInventoryData, 30000);
+    const interval = window.setInterval(fetchInventoryData, 30000);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -97,7 +96,7 @@ export default function DashboardPage() {
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
   const completedOrders = orders.filter((o) => o.status === "completed").length;
 
-  const getStatusBadgeColor = (status: string) => {
+  const getStatusBadgeColor = (status: Order["status"]) => {
     switch (status) {
       case "pending":
         return "bg-yellow-100 text-yellow-700";
@@ -113,63 +112,7 @@ export default function DashboardPage() {
   return (
     <EmployeeRoute>
       <div className="flex min-h-screen bg-cream font-dm">
-        <div className="w-64 bg-forest text-cream p-6 shadow-lg flex flex-col">
-          <div className="mb-8">
-            <h2 className="font-playfair text-2xl font-bold mb-2">OFS</h2>
-            <p className="text-cream/80 text-sm">Organic Food Service</p>
-          </div>
-
-          <nav className="space-y-2">
-            <Link
-              href="/empdashboard"
-              className="block px-4 py-3 rounded-lg bg-sage text-white font-medium transition-colors hover:bg-sage/90"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/inventory"
-              className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-            >
-              Inventory
-            </Link>
-            <Link
-              href="/orders"
-              className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-            >
-              Orders
-            </Link>
-            <Link
-              href="/routing"
-              className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-            >
-              Deliveries
-            </Link>
-            <Link
-              href="/reports"
-              className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-            >
-              Reports
-            </Link>
-            <Link
-              href="/settings"
-              className="block px-4 py-3 rounded-lg text-cream font-medium transition-colors hover:bg-forest/80"
-            >
-              Settings
-            </Link>
-          </nav>
-
-          <div className="mt-auto pt-6 border-t border-cream/20">
-            <button
-              onClick={() => {
-                logout();
-                router.push("/login-register");
-              }}
-              className="w-full px-4 py-2 rounded-lg bg-warm/30 text-cream font-medium transition-colors hover:bg-warm/50"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
+        <EmployeeSidebar active="dashboard" />
 
         <div className="flex-1 p-8">
           <div className="mb-8">
@@ -195,6 +138,7 @@ export default function DashboardPage() {
                 {pendingOrders}
               </p>
             </div>
+
             <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-mint">
               <p className="text-[#666] text-sm font-medium mb-2">
                 Completed Today
@@ -203,6 +147,7 @@ export default function DashboardPage() {
                 {completedOrders}
               </p>
             </div>
+
             <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-warm">
               <p className="text-[#666] text-sm font-medium mb-2">
                 Low Stock Items
@@ -211,6 +156,7 @@ export default function DashboardPage() {
                 {loading ? "..." : lowStockItems.length}
               </p>
             </div>
+
             <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-blue-400">
               <p className="text-[#666] text-sm font-medium mb-2">
                 Total Revenue
@@ -268,7 +214,7 @@ export default function DashboardPage() {
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-playfair text-xl text-forest">
-                    Today's Orders
+                    Today&apos;s Orders
                   </h2>
                   <Link
                     href="/orders"
@@ -310,7 +256,9 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-3 px-4">
                             <span
-                              className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadgeColor(order.status)}`}
+                              className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadgeColor(
+                                order.status,
+                              )}`}
                             >
                               {order.status}
                             </span>

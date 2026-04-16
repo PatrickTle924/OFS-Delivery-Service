@@ -4,9 +4,10 @@ import { useState, useMemo, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import ProductCard from "@/components/ProductCard";
 import CartDrawer from "@/components/CartDrawer";
-import { Product, CartItem, Category } from "@/types/shop";
+import { Product, Category } from "@/types/shop";
 import { fetchProducts } from "@/lib/api-service";
 import CustomerRoute from "@/components/CustomerRoute";
+import { useCart } from "@/context/CartContext";
 
 const CATEGORIES: Category[] = [
   "Fruits",
@@ -17,7 +18,6 @@ const CATEGORIES: Category[] = [
   "Pantry",
 ];
 
-// ── Search icon ────────────────────────────────────────────────────
 const IconSearch = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -34,15 +34,35 @@ const IconSearch = () => (
   </svg>
 );
 
-// ── Page ──────────────────────────────────────────────────────────
+function normalizeCategory(category: string): Category | "" {
+  const value = category.trim().toLowerCase();
+
+  if (value === "fruits") return "Fruits";
+  if (value === "vegetables") return "Vegetables";
+  if (value === "meats") return "Meats";
+  if (value === "dairy") return "Dairy";
+  if (value === "bakery") return "Bakery";
+  if (value === "pantry") return "Pantry";
+
+  return "";
+}
+
 export default function BrowsePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+
+  const {
+    cart,
+    totalItems,
+    addToCart,
+    removeOne,
+    removeFromCart,
+    getQuantity,
+  } = useCart();
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -51,6 +71,7 @@ export default function BrowsePage() {
         setProducts(data);
         setProductsError(null);
       } catch (error) {
+        console.error("Failed to load products:", error);
         setProductsError("Unable to load products right now.");
       } finally {
         setLoadingProducts(false);
@@ -60,60 +81,26 @@ export default function BrowsePage() {
     loadProducts();
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      products.filter((p) => {
-        const matchesCategory =
-          activeCategory === "All" || p.category === activeCategory;
-        const matchesSearch = p.name
-          .toLowerCase()
-          .includes(search.toLowerCase());
-        return matchesCategory && matchesSearch;
-      }),
-    [products, search, activeCategory],
-  );
+  const filtered = useMemo(() => {
+    return products.filter((p) => {
+      const normalizedCategory = normalizeCategory(p.category);
+      const matchesCategory =
+        activeCategory === "All" || normalizedCategory === activeCategory;
 
-  const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
-  const getQuantity = (id: number) =>
-    cart.find((i) => i.product.id === id)?.quantity ?? 0;
+      const matchesSearch = p.name
+        .toLowerCase()
+        .includes(search.trim().toLowerCase());
 
-  const addToCart = (product: Product) => {
-    if (product.stock === 0) return;
-    setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        if (existing.quantity >= product.stock) return prev;
-        return prev.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i,
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
+      return matchesCategory && matchesSearch;
     });
-  };
-
-  const removeOne = (id: number) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === id);
-      if (!existing) return prev;
-      if (existing.quantity === 1)
-        return prev.filter((i) => i.product.id !== id);
-      return prev.map((i) =>
-        i.product.id === id ? { ...i, quantity: i.quantity - 1 } : i,
-      );
-    });
-  };
-
-  const removeFromCart = (id: number) =>
-    setCart((prev) => prev.filter((i) => i.product.id !== id));
+  }, [products, search, activeCategory]);
 
   return (
     <CustomerRoute>
       <div className="min-h-screen bg-cream font-dm relative">
-        {/* Background gradients */}
         <div className="pointer-events-none fixed top-[-10%] left-[-10%] w-150 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.18)_0%,transparent_65%)] -z-10" />
         <div className="pointer-events-none fixed bottom-[-10%] right-[-10%] w-150 h-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.10)_0%,transparent_65%)] -z-10" />
 
-        {/* Navbar — browse mode */}
         <Navbar
           alwaysFrosted
           cartItemCount={totalItems}
@@ -121,18 +108,17 @@ export default function BrowsePage() {
         />
 
         <div className="max-w-7xl mx-auto px-8 pt-28 pb-16">
-          {/* Page header */}
           <div className="mb-10">
             <p className="text-sage text-xs font-medium tracking-[0.14em] uppercase mb-2">
               OFS Market
             </p>
             <h1 className="font-playfair text-4xl md:text-5xl text-forest leading-tight">
-              Fresh <em className="text-clay">Organics</em>,<br />
+              Fresh <em className="text-clay">Organics</em>,
+              <br />
               delivered today.
             </h1>
           </div>
 
-          {/* Search + category filters */}
           <div className="flex flex-col sm:flex-row gap-4 mb-10">
             <div className="relative flex-1 max-w-md">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-forest/40">
@@ -148,7 +134,7 @@ export default function BrowsePage() {
             </div>
 
             <div className="flex gap-2 flex-wrap">
-              {(["All", ...CATEGORIES] as (Category | "All")[]).map((cat) => (
+              {(["All", ...CATEGORIES] as const).map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
@@ -164,7 +150,6 @@ export default function BrowsePage() {
             </div>
           </div>
 
-          {/* Product grid */}
           {loadingProducts ? (
             <div className="text-center py-24 text-forest/40">
               <p className="font-playfair text-2xl mb-2">Loading products...</p>
@@ -198,7 +183,6 @@ export default function BrowsePage() {
           )}
         </div>
 
-        {/* Cart drawer */}
         <CartDrawer
           open={cartOpen}
           onClose={() => setCartOpen(false)}

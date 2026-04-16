@@ -33,7 +33,7 @@ export default function Navbar({
   onCartClick,
 }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     if (alwaysFrosted) return;
@@ -45,32 +45,86 @@ export default function Navbar({
   }, [alwaysFrosted]);
 
   const frosted = alwaysFrosted || scrolled;
+  const isCustomer = user?.role === "customer";
+  const isEmployee = user?.role === "employee";
+
   const initials =
     `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() ||
     "U";
 
-  const profileHref =
-    user?.role === "employee" ? "/empdashboard" : "/user/profile";
+  const profileLink =
+    !loading && user ? (
+      <Link
+        href={isEmployee ? "/empdashboard" : "/user/profile"}
+        aria-label="Open profile"
+        title={user.firstName ? `${user.firstName}'s profile` : "Open profile"}
+        className="flex items-center gap-3"
+      >
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-sage to-forest text-cream border-2 border-white/70 flex items-center justify-center shadow-md shadow-forest/15">
+          <span className="text-sm font-semibold tracking-wide">
+            {initials}
+          </span>
+        </div>
+      </Link>
+    ) : (
+      <Link
+        href="/login-register"
+        className="bg-forest text-cream text-sm font-medium px-5 py-2.5 rounded-full hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
+      >
+        Sign In
+      </Link>
+    );
 
-  const profileLink = user ? (
-    <Link
-      href={profileHref}
-      aria-label="Open profile"
-      title={user.firstName ? `${user.firstName}'s profile` : "Open profile"}
-      className="flex items-center gap-3"
-    >
-      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-sage to-forest text-cream border-2 border-white/70 flex items-center justify-center shadow-md shadow-forest/15">
-        <span className="text-sm font-semibold tracking-wide">{initials}</span>
-      </div>
-    </Link>
-  ) : (
-    <Link
-      href="/login-register"
-      className="bg-forest text-cream text-sm font-medium px-5 py-2.5 rounded-full hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
-    >
-      Sign In
-    </Link>
-  );
+  const customerLinks = isCustomer ? (
+    <>
+      <Link
+        href="/user/browse"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Shop
+      </Link>
+      <Link
+        href="/user/order-history"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Orders
+      </Link>
+    </>
+  ) : null;
+
+  const employeeLinks = isEmployee ? (
+    <>
+      <Link
+        href="/empdashboard"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Dashboard
+      </Link>
+      <Link
+        href="/inventory"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Inventory
+      </Link>
+    </>
+  ) : null;
+
+  const defaultLinks = !user ? (
+    <>
+      <Link
+        href="/#how-it-works"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        How It Works
+      </Link>
+      <Link
+        href="/#features"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Features
+      </Link>
+    </>
+  ) : null;
 
   return (
     <nav
@@ -90,6 +144,8 @@ export default function Navbar({
       <div className="flex items-center gap-8">
         {onCartClick !== undefined ? (
           <>
+            {customerLinks}
+            {employeeLinks}
             <button
               onClick={onCartClick}
               className="relative flex items-center gap-2 bg-forest text-cream px-4 py-2.5 rounded-full text-sm font-medium hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
@@ -106,18 +162,9 @@ export default function Navbar({
           </>
         ) : (
           <>
-            <Link
-              href="/#how-it-works"
-              className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
-            >
-              How It Works
-            </Link>
-            <Link
-              href="/#features"
-              className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
-            >
-              Features
-            </Link>
+            {customerLinks}
+            {employeeLinks}
+            {defaultLinks}
             {profileLink}
           </>
         )}

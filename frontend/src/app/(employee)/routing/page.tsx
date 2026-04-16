@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import EmployeeSidebar from "@/components/EmployeeSidebar";
 import { DeliveryRoutes } from "@/components/DeliveryRoutes";
 import { SuggestedRoutes } from "@/components/SuggestedRoutes";
 import { ActiveDeliveryCard } from "@/components/ActiveDeliveryCard";
@@ -200,6 +201,7 @@ export default function DeliveryDashboardPage() {
           fontFamily: "'DM Sans', sans-serif",
         }}
       >
+        <EmployeeSidebar active="routing" />
         <main className="w-full px-4 py-6 md:px-6">
           <div className="flex flex-col lg:flex-row gap-5">
             <div className="w-full lg:w-80 flex-shrink-0 lg:h-[calc(100vh-5.5rem)] lg:sticky lg:top-6">
