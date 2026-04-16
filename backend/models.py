@@ -157,3 +157,22 @@ class Payment(db.Model):
     payment_intent_id = db.Column(db.String(255))
 
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class Report(db.Model):
+    __tablename__ = "reports"
+
+    report_id = db.Column(db.Integer, primary_key=True)
+
+    order_id = db.Column(db.Integer, db.ForeignKey("orders.order_id"), nullable=False)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customer_profiles.id"), nullable=False)
+
+    report_type = db.Column(db.String(50), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default="open")
+
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc))
+
+    order = db.relationship("Order", backref="reports")
+    customer = db.relationship("CustomerProfile", backref="reports")
