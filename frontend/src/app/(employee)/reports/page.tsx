@@ -94,10 +94,10 @@ export default function ReportsPage() {
 
   return (
     <EmployeeRoute>
-      <div className="flex min-h-screen bg-cream font-dm">
+      <div className="min-h-screen bg-cream font-dm">
         <EmployeeSidebar active="reports" />
 
-        <div className="flex-1 p-8">
+        <main className="p-8">
           <div className="mb-8">
             <h1 className="font-playfair text-4xl text-forest mb-2">
               Customer Reports
@@ -214,7 +214,7 @@ export default function ReportsPage() {
               ))}
             </div>
           )}
-        </div>
+        </main>
       </div>
     </EmployeeRoute>
   );

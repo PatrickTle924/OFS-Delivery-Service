@@ -162,10 +162,10 @@ export default function InventoryPage() {
 
   return (
     <EmployeeRoute>
-      <div className="min-h-screen bg-cream font-dm flex">
+      <div className="min-h-screen bg-cream font-dm">
         <EmployeeSidebar active="inventory" />
 
-        <div className="flex-1 p-8">
+        <main className="p-8">
           <div className="max-w-7xl mx-auto">
             <div className="mb-8 flex items-start justify-between gap-6">
               <div>
@@ -465,7 +465,7 @@ export default function InventoryPage() {
               </div>
             )}
           </div>
-        </div>
+        </main>
       </div>
     </EmployeeRoute>
   );

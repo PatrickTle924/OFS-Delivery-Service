@@ -89,6 +89,12 @@ export default function Navbar({
       >
         Orders
       </Link>
+      <Link
+        href="/user/orders"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Track
+      </Link>
     </>
   ) : null;
 

@@ -31,7 +31,6 @@ export interface ChangePasswordInput {
   currentPassword: string;
   newPassword: string;
 }
-
 export interface OrderHistoryItem {
   order_id: number;
   ordered_at: string | null;
@@ -40,6 +39,19 @@ export interface OrderHistoryItem {
   item_count: number;
   delivery_address: string;
   total_weight: number;
+
+  tripId?: string | null;
+  tripStatus?: string | null;
+  eta?: number | null;
+  routeGeometry?: { type: "LineString"; coordinates: number[][] } | null;
+  traveledPath?: { type: "LineString"; coordinates: number[][] } | null;
+  robotPosition?: { lng: number; lat: number } | null;
+  mapPoints?: {
+    lng: number;
+    lat: number;
+    label: string;
+    completed: boolean;
+  }[];
 }
 
 const getToken = (): string | null => {
@@ -484,6 +496,37 @@ export async function updateReportStatus(
 
   if (!response.ok) {
     throw new Error(data?.error || "Failed to update report");
+  }
+
+  return data;
+}
+export interface EmployeeOrderItem {
+  id: number;
+  label: string;
+  customerId?: number;
+  customerName?: string;
+  weight: number;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  price: number;
+  lat: number | null;
+  lng: number | null;
+  status: string;
+  orderedAt: string | null;
+  completedAt?: string | null;
+}
+
+export async function fetchAllOrders(): Promise<EmployeeOrderItem[]> {
+  const res = await fetch(`${API_BASE_URL}/orders/all`, {
+    headers: getAuthHeaders(),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to fetch all orders");
   }
 
   return data;

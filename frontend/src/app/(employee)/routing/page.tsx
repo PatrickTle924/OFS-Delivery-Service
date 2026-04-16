@@ -194,7 +194,7 @@ export default function DeliveryDashboardPage() {
   return (
     <EmployeeRoute>
       <div
-        className="min-h-screen flex"
+        className="min-h-screen"
         style={{
           background: "var(--color-cream)",
           fontFamily: "'DM Sans', sans-serif",
@@ -202,7 +202,8 @@ export default function DeliveryDashboardPage() {
       >
         <EmployeeSidebar active="routing" />
 
-        <main className="flex-1 px-4 py-6 md:px-6">
+        <main className="px-4 py-6 md:px-6">
+          {" "}
           <div className="flex flex-col lg:flex-row gap-5">
             <div className="w-full lg:w-80 flex-shrink-0 lg:h-[calc(100vh-5.5rem)] lg:sticky lg:top-6">
               {loadingOrders ? (

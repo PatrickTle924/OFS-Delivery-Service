@@ -3,9 +3,15 @@
 import { useEffect, useState } from "react";
 import CustomerRoute from "@/components/CustomerRoute";
 import { fetchOrderHistory, OrderHistoryItem } from "@/lib/api-service";
-import EmployeeSidebar from "@/components/EmployeeSidebar";
-
-type OrderStatus = "pending" | "delivered" | "cancelled" | "in progress";
+import { ActiveDelivery } from "@/types/routing";
+import Navbar from "@/components/Navbar";
+import { MiniMap } from "@/components/MiniMap";
+type OrderStatus =
+  | "pending"
+  | "assigned"
+  | "delivered"
+  | "cancelled"
+  | "in progress";
 
 interface TimelineStepData {
   label: string;
@@ -23,12 +29,18 @@ interface UIOrder {
   address: string;
   eta: string;
   steps: TimelineStepData[];
+
+  rawStatus: OrderStatus;
+  tripId?: string | null;
+  tripStatus?: string | null;
+  mapData?: ActiveDelivery | null;
 }
 
 function normalizeStatus(status: string): OrderStatus {
   const value = status.trim().toLowerCase();
 
   if (value === "pending") return "pending";
+  if (value === "assigned") return "assigned";
   if (value === "delivered") return "delivered";
   if (value === "cancelled") return "cancelled";
   if (value === "in progress" || value === "in_progress") return "in progress";
@@ -85,7 +97,7 @@ function buildSteps(
     ];
   }
 
-  if (status === "in progress") {
+  if (status === "assigned" || status === "in progress") {
     return [
       { label: "Order Placed", time: placedTime, done: true, active: false },
       {
@@ -96,7 +108,7 @@ function buildSteps(
       },
       {
         label: "Out for Delivery",
-        time: "Now",
+        time: status === "assigned" ? "Assigned" : "Now",
         done: false,
         active: true,
       },
@@ -155,17 +167,35 @@ function buildSteps(
     },
   ];
 }
-
 function toUIOrder(order: OrderHistoryItem): UIOrder {
   const normalizedStatus = normalizeStatus(order.status);
+
+  const hasApprovedRoute =
+    normalizedStatus === "assigned" || normalizedStatus === "in progress";
+
+  const mapData: ActiveDelivery | null =
+    hasApprovedRoute && order.tripId
+      ? {
+          tripId: order.tripId,
+          tripNumericId: Number(order.tripId.replace("Trip #", "")),
+          robotId: "Robot-01",
+          eta: order.eta ?? 0,
+          mapPoints: order.mapPoints ?? [],
+          mapLines: [],
+          routeGeometry: order.routeGeometry ?? null,
+          traveledPath: order.traveledPath ?? null,
+          robotPosition: order.robotPosition ?? null,
+          status: order.tripStatus ?? order.status,
+        }
+      : null;
 
   return {
     id: order.order_id,
     items: order.item_count,
     weight: `${order.total_weight.toFixed(1)} lbs`,
     status:
-      normalizedStatus === "in progress"
-        ? "In Transit"
+      normalizedStatus === "assigned" || normalizedStatus === "in progress"
+        ? "Out for Delivery"
         : normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1),
     placedAt: formatPlacedAt(order.ordered_at),
     address: order.delivery_address || "Address unavailable",
@@ -176,6 +206,10 @@ function toUIOrder(order: OrderHistoryItem): UIOrder {
           ? "Cancelled"
           : "Pending update",
     steps: buildSteps(normalizedStatus, order.ordered_at),
+    rawStatus: normalizedStatus,
+    tripId: order.tripId ?? null,
+    tripStatus: order.tripStatus ?? null,
+    mapData,
   };
 }
 
@@ -244,9 +278,15 @@ function OrderCard({ order }: { order: UIOrder }) {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.8fr_1fr]">
         <div className="rounded-2xl border border-warm/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.5),rgba(246,241,233,0.7))] p-3">
-          <div className="flex h-[260px] items-center justify-center rounded-xl border border-dashed border-forest/15 bg-forest/5 text-center text-base text-forest/45 md:h-[340px]">
-            Live map not available in history view
-          </div>
+          {order.mapData ? (
+            <div className="h-[260px] overflow-hidden rounded-xl md:h-[340px]">
+              <MiniMap delivery={order.mapData} className="w-full h-full" />
+            </div>
+          ) : (
+            <div className="flex h-[260px] items-center justify-center rounded-xl border border-dashed border-forest/15 bg-forest/5 text-center text-base text-forest/45 md:h-[340px]">
+              Route not approved yet
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col justify-between rounded-2xl border border-warm/70 bg-cream/60 p-5">
@@ -294,28 +334,34 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadOrders() {
+    const loadOrders = async () => {
       try {
         const data = await fetchOrderHistory();
         const mapped = data.map(toUIOrder);
         setOrders(mapped);
+        setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load orders.");
       } finally {
         setLoading(false);
       }
-    }
+    };
 
     loadOrders();
+
+    const intervalId = window.setInterval(() => {
+      void loadOrders();
+    }, 3000);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   return (
     <CustomerRoute>
       <div className="min-h-screen bg-cream font-dm relative">
+        <Navbar alwaysFrosted />
         <div className="pointer-events-none fixed top-[-10%] left-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.18)_0%,transparent_65%)] -z-10" />
         <div className="pointer-events-none fixed bottom-[-10%] right-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.10)_0%,transparent_65%)] -z-10" />
-
-        <EmployeeSidebar active="orders" />
 
         <main className="mx-auto max-w-7xl px-8 pb-16 pt-28">
           <div className="mb-10">

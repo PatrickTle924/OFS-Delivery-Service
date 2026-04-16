@@ -1128,7 +1128,7 @@ def get_order_details(order_id):
     }), 200
 
 @app.route('/orders/history', methods=['GET'])
-@jwt_required()
+@role_required("customer")
 def get_order_history():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
@@ -1139,15 +1139,77 @@ def get_order_history():
     if not user.customer_profile:
         return jsonify({"error": "Only customers have order history"}), 403
 
+    active_statuses = ["pending", "assigned", "in_progress"]
+
     orders = (
         Order.query
-        .filter_by(customer_id=user.customer_profile.id)
+        .filter(
+            Order.customer_id == user.customer_profile.id,
+            Order.status.in_(active_statuses)
+        )
         .order_by(Order.ordered_at.desc())
         .all()
     )
 
-    return jsonify([
-        {
+    results = []
+
+    for o in orders:
+        trip = o.trip
+
+        route_geometry = None
+        traveled_path = None
+        robot_position = None
+        trip_status = None
+        trip_id = None
+        map_points = []
+
+        if trip:
+            trip_status = trip.status
+            trip_id = trip.trip_id
+
+            if trip.route_geometry:
+                try:
+                    route_geometry = json.loads(trip.route_geometry)
+                    coords = route_geometry.get("coordinates", [])
+
+                    if coords:
+                        current_index = trip.current_index or 0
+                        traveled_coords = coords[: current_index + 1]
+                        traveled_path = {
+                            "type": "LineString",
+                            "coordinates": traveled_coords,
+                        }
+                except Exception:
+                    route_geometry = None
+                    traveled_path = None
+
+            robot_position = (
+                {
+                    "lng": trip.current_lng,
+                    "lat": trip.current_lat,
+                }
+                if trip.current_lng is not None and trip.current_lat is not None
+                else None
+            )
+
+            assigned_orders = (
+                Order.query.filter(Order.trip_id == trip.trip_id)
+                .order_by(Order.order_id.asc())
+                .all()
+            )
+
+            for i, order in enumerate(assigned_orders, start=1):
+                if order.delivery_lat is None or order.delivery_lng is None:
+                    continue
+
+                map_points.append({
+                    "lng": order.delivery_lng,
+                    "lat": order.delivery_lat,
+                    "label": str(i),
+                    "completed": order.status == "delivered",
+                })
+
+        results.append({
             "order_id": o.order_id,
             "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
             "total_cost": o.total_cost,
@@ -1155,9 +1217,17 @@ def get_order_history():
             "item_count": len(o.order_items),
             "delivery_address": o.delivery_address,
             "total_weight": o.total_weight,
-        }
-        for o in orders
-    ]), 200
+            "tripId": f"Trip #{trip_id}" if trip_id else None,
+            "tripStatus": trip_status,
+            "routeGeometry": route_geometry,
+            "traveledPath": traveled_path,
+            "robotPosition": robot_position,
+            "mapPoints": map_points,
+            "eta": round(trip.estimated_time or 0) if trip else None,
+        })
+
+    return jsonify(results), 200
+
 
 @app.route('/reports', methods=['POST'])
 @role_required("customer")
@@ -1228,6 +1298,57 @@ def update_report(report_id):
     db.session.commit()
 
     return jsonify({"message": "Report updated successfully"}), 200
+
+
+@app.route('/orders/all', methods=['GET'])
+@role_required("employee")
+def get_all_orders():
+    orders = (
+        Order.query
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
+
+    results = []
+
+    for o in orders:
+        # get customer + user info
+        customer = CustomerProfile.query.get(o.customer_id)
+        user = User.query.get(customer.user_id) if customer else None
+
+        customer_name = (
+            f"{user.first_name} {user.last_name}"
+            if user else f"Customer #{o.customer_id}"
+        )
+
+        results.append({
+            "id": o.order_id,
+            "label": f"Order #{o.order_id}",
+            "customerId": o.customer_id,
+            "customerName": customer_name,
+
+            "weight": o.total_weight,
+            "address": o.delivery_address,
+            "city": o.delivery_city,
+            "state": o.delivery_state,
+            "zip": o.delivery_zip,
+
+            "price": o.total_cost,
+            "lat": o.delivery_lat,
+            "lng": o.delivery_lng,
+
+            "status": o.status,
+
+            "orderedAt": o.ordered_at.isoformat() if o.ordered_at else None,
+
+            "completedAt": (
+                o.updated_at.isoformat()
+                if o.status == "delivered" and o.updated_at
+                else None
+            ),
+        })
+
+    return jsonify(results), 200
 
 
 # for local development without Docker
