@@ -1,13 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Navbar from "@/components/Navbar";
+import { getStoredUser, isCustomerUser } from "@/lib/auth";
+import { useCart } from "@/context/CartContext";
 
-type CartItem = {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-};
 
 type DeliveryInfo = {
   fullName: string;
@@ -20,11 +18,19 @@ type DeliveryInfo = {
 };
 
 export default function CheckoutPage() {
-  const [cartItems] = useState<CartItem[]>([
-    { id: 1, name: "Apples", price: 12.99, quantity: 1 },
-    { id: 2, name: " Oranges", price: 3.99, quantity: 2 },
-    { id: 3, name: "Chicken ", price: 14.5, quantity: 1 },
-  ]);
+
+    const router = useRouter();
+
+    const {
+    cart,
+    totalItems,
+    totalPrice,
+    addToCart,
+    removeOne,
+    removeFromCart,
+    clearCart,
+  } = useCart();
+
 
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     fullName: "",
@@ -40,13 +46,18 @@ export default function CheckoutPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const subtotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  }, [cartItems]);
+  const subtotal = totalPrice;
 
   const deliveryFee = 4.99;
   const tax = subtotal * 0.08;
   const total = subtotal + deliveryFee + tax;
+
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!isCustomerUser(user)) {
+      router.replace("/login-register");
+    }
+  }, [router]);
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -76,14 +87,24 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
 
+      const user = JSON.parse(localStorage.getItem("ofsUser") || "null");
+      
+
+      const total_weight = cart.reduce(
+  (acc, item) => acc + (item.product.weight || 0) * item.quantity,
+  0,
+);
+
       const payload = {
         customerName: deliveryInfo.fullName,
-        items: cartItems,
+        userId: user?.id,
+        items: cart,
         deliveryInfo,
         subtotal,
         deliveryFee,
         tax,
         total,
+        total_weight,
       };
 
       const response = await fetch("http://localhost:5000/orders", {
@@ -95,16 +116,21 @@ export default function CheckoutPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to place order");
-      }
+  const errData = await response.json();
+  throw new Error(errData.error || "Failed to place order");
+}
 
       const result = await response.json();
       setSuccessMessage(
         `Order placed successfully! Order ID: ${result.id ?? "Created"}`,
       );
+      clearCart(); 
+      localStorage.removeItem("ofs-cart");
+      router.push("/user/order-history");
     } catch (error) {
       console.error(error);
-      setErrorMessage("Failed to place order. Please try again.");
+      //setErrorMessage("Failed to place order. Please try again.");
+      setErrorMessage(error instanceof Error ? error.message : "Failed to place order. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -112,7 +138,8 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-zinc-100 px-6 py-10 text-black">
-      <div className="mx-auto max-w-6xl">
+      <Navbar alwaysFrosted />
+      <div className="mx-auto max-w-6xl pt-24">
         <h1 className="mb-8 text-4xl font-bold">Checkout</h1>
 
         <div className="grid gap-8 md:grid-cols-2">
@@ -179,18 +206,18 @@ export default function CheckoutPage() {
             <h2 className="mb-4 text-2xl font-semibold">Order Summary</h2>
 
             <div className="space-y-4">
-              {cartItems.map((item) => (
+              {cart.map((item) => (
                 <div
-                  key={item.id}
+                  key={item.product.id}
                   className="flex items-center justify-between border-b pb-3"
                 >
                   <div>
-                    <p className="font-medium">{item.name}</p>
+                    <p className="font-medium">{item.product.name}</p>
                     <p className="text-sm text-zinc-500">
                       Qty: {item.quantity}
                     </p>
                   </div>
-                  <p>${(item.price * item.quantity).toFixed(2)}</p>
+                  <p>${(item.product.price * item.quantity).toFixed(2)}</p>
                 </div>
               ))}
             </div>

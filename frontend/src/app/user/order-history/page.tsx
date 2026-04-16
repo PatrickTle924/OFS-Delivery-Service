@@ -1,15 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import OrderCard, { OrderData } from "@/components/OrderCard";
 import Link from "next/link";
+import { getStoredUser, isCustomerUser } from "@/lib/auth";
 
 export default function OrderHistoryPage() {
+  const router = useRouter();
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const user = getStoredUser();
+    if (!isCustomerUser(user)) {
+      router.replace("/login-register");
+      return;
+    }
+
     async function fetchOrders() {
       try {
         const res = await fetch("http://localhost:5000/orders/history");
@@ -28,7 +37,7 @@ export default function OrderHistoryPage() {
     }
 
     fetchOrders();
-  }, []);
+  }, [router]);
 
   return (
     <main className="min-h-screen bg-cream font-dm relative pb-20">

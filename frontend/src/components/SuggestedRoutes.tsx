@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { RouteOption, RoutePreview, ActiveDelivery } from "@/types/routing";
 import { RouteOptionCard } from "./RouteOptionCard";
 import { MiniMap } from "./MiniMap";
@@ -16,15 +16,13 @@ export function SuggestedRoutes({
   routePreview,
   onApprove,
 }: SuggestedRoutesProps) {
-  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (routes.length > 0) {
-      setSelectedRouteId(routes[0].id);
-    } else {
-      setSelectedRouteId(null);
-    }
-  }, [routes]);
+  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(
+    routes[0]?.id ?? null,
+  );
+  const resolvedSelectedRouteId =
+    selectedRouteId !== null && routes.some((route) => route.id === selectedRouteId)
+      ? selectedRouteId
+      : routes[0]?.id ?? null;
 
   const previewDelivery: ActiveDelivery | null = useMemo(() => {
     if (!routePreview || routes.length === 0) return null;
@@ -90,12 +88,12 @@ export function SuggestedRoutes({
               key={route.id}
               onClick={() => setSelectedRouteId(route.id)}
               className={`transition-all ${
-                selectedRouteId === route.id
+                resolvedSelectedRouteId === route.id
                   ? "ring-2 ring-offset-2 rounded-2xl"
                   : ""
               }`}
               style={
-                selectedRouteId === route.id
+                resolvedSelectedRouteId === route.id
                   ? ({
                       ringColor: "var(--color-forest)",
                     } as React.CSSProperties)

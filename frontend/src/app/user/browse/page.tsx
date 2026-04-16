@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import ProductCard from "@/components/ProductCard";
 import CartDrawer from "@/components/CartDrawer";
-import { Product, CartItem, Category } from "@/types/shop";
+import { Product, Category } from "@/types/shop";
 import { fetchProducts } from "@/lib/api-service";
+import { useCart } from "@/context/CartContext";
+import { getStoredUser, isCustomerUser } from "@/lib/auth";
 
 const CATEGORIES: Category[] = ["Fruits", "Vegetables", "Meats", "Dairy", "Bakery", "Pantry"];
 
@@ -18,15 +21,30 @@ const IconSearch = () => (
 
 // ── Page ──────────────────────────────────────────────────────────
 export default function BrowsePage() {
+    const router = useRouter();
     const [products, setProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(true);
     const [productsError, setProductsError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
-    const [cart, setCart] = useState<CartItem[]>([]);
     const [cartOpen, setCartOpen] = useState(false);
 
+    const {
+    cart,
+    totalItems,
+    addToCart,
+    removeOne,
+    removeFromCart,
+    getQuantity,
+  } = useCart();
+
     useEffect(() => {
+        const user = getStoredUser();
+        if (!isCustomerUser(user)) {
+            router.replace("/login-register");
+            return;
+        }
+
         const loadProducts = async () => {
             try {
                 const data = await fetchProducts();
@@ -40,7 +58,7 @@ export default function BrowsePage() {
         };
 
         loadProducts();
-    }, []);
+    }, [router]);
 
     const filtered = useMemo(() => products.filter((p) => {
         const matchesCategory = activeCategory === "All" || p.category === activeCategory;
@@ -48,34 +66,6 @@ export default function BrowsePage() {
         return matchesCategory && matchesSearch;
     }), [products, search, activeCategory]);
 
-    const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
-    const getQuantity = (id: number) => cart.find((i) => i.product.id === id)?.quantity ?? 0;
-
-    const addToCart = (product: Product) => {
-        if (product.stock === 0) return;
-        setCart((prev) => {
-            const existing = prev.find((i) => i.product.id === product.id);
-            if (existing) {
-                if (existing.quantity >= product.stock) return prev;
-                return prev.map((i) =>
-                    i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
-                );
-            }
-            return [...prev, { product, quantity: 1 }];
-        });
-    };
-
-    const removeOne = (id: number) => {
-        setCart((prev) => {
-            const existing = prev.find((i) => i.product.id === id);
-            if (!existing) return prev;
-            if (existing.quantity === 1) return prev.filter((i) => i.product.id !== id);
-            return prev.map((i) => i.product.id === id ? { ...i, quantity: i.quantity - 1 } : i);
-        });
-    };
-
-    const removeFromCart = (id: number) =>
-        setCart((prev) => prev.filter((i) => i.product.id !== id));
 
     return (
         <div className="min-h-screen bg-cream font-dm relative">

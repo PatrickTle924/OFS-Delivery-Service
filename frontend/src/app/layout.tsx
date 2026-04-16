@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
 import "./globals.css";
+import { CartProvider } from "../context/CartContext";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -28,7 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${playfair.variable} ${dmSans.variable} font-dm bg-cream text-[#1a1a14] antialiased`}>
-        {children}
+        
+          <CartProvider>{children}</CartProvider>
+
       </body>
     </html>
   );

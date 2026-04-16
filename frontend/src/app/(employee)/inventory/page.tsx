@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import EmployeeSidebar from "@/components/EmployeeSidebar";
 
 interface InventoryItem {
   id: string;
@@ -15,7 +15,7 @@ interface InventoryItem {
   lastRestocked: string;
 }
 
-const CATEGORIES = ["fruits", "vegetables", "produce", "meat"];
+const CATEGORIES = ["fruits", "vegetables", "meats", "dairy", "bakery", "pantry"];
 
 export default function InventoryPage() {
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -93,45 +93,6 @@ export default function InventoryPage() {
     }));
   };
 
-//   const handleSaveItem = async () => {
-//   if (!formData.name) {
-//     alert("Please fill in all required fields");
-//     return;
-//   }
-
-//   try {
-//     if (editingItem) {
-//       const response = await fetch(`http://localhost:5000/products/${editingItem.id}`, {
-//         method: "PUT",
-//         headers: {
-//           "Content-Type": "application/json",
-//         },
-//         body: JSON.stringify({
-//           name: formData.name,
-//           description: "",
-//           category: formData.category,
-//           quantity: formData.quantity,
-//           weight: formData.weight,
-//           price: formData.price,
-//         }),
-//       });
-
-//       if (!response.ok) {
-//         throw new Error("Failed to update product");
-//       }
-
-//       await fetchInventory();
-//     } else {
-//       alert("Add item is still frontend-only right now.");
-//     }
-
-//     handleCloseModal();
-//   } catch (error) {
-//     console.error("Failed to save item:", error);
-//     alert("Failed to save item");
-//   }
-// };
-
 
 const handleSaveItem = async () => {
   if (!formData.name) {
@@ -207,7 +168,9 @@ const handleSaveItem = async () => {
   const lowStockItems = filteredItems.filter((item) => item.quantity <= item.reorderLevel);
 
   return (
-    <div className="min-h-screen bg-cream p-8 font-dm">
+    <div className="min-h-screen bg-cream font-dm flex">
+      <EmployeeSidebar active="inventory" />
+      <div className="flex-1 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex justify-between items-center">
@@ -222,12 +185,6 @@ const handleSaveItem = async () => {
             >
               + Add Item
             </button>
-            <Link
-              href="/empdashboard"
-              className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-            >
-              ← Back to Dashboard
-            </Link>
           </div>
         </div>
 
@@ -340,6 +297,7 @@ const handleSaveItem = async () => {
             </table>
           </div>
         )}
+      </div>
       </div>
 
       {/* Add/Edit Modal */}

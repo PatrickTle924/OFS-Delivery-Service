@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { changePassword, fetchUserProfile } from "@/lib/api-service";
+import { getStoredUser, isCustomerUser } from "@/lib/auth";
 
 interface UserProfile {
   firstName: string;
@@ -144,19 +145,13 @@ export default function ProfilePage() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const storedUser = window.localStorage.getItem("ofsUser");
+        const storedUser = getStoredUser();
 
-        if (!storedUser) {
+        if (!storedUser || !isCustomerUser(storedUser)) {
           throw new Error("Please sign in to view your profile.");
         }
 
-        const parsedUser = JSON.parse(storedUser) as { email?: string };
-
-        if (!parsedUser.email) {
-          throw new Error("We couldn't determine which profile to load.");
-        }
-
-        const userProfile = await fetchUserProfile(parsedUser.email);
+        const userProfile = await fetchUserProfile(storedUser.email);
         const formattedProfile = {
           firstName: userProfile.firstName,
           lastName: userProfile.lastName,

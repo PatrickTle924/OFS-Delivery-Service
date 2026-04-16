@@ -2,18 +2,12 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { getStoredUser, isCustomerUser, type StoredUser } from "@/lib/auth";
 
 interface NavbarProps {
   alwaysFrosted?: boolean;
   cartItemCount?: number;
   onCartClick?: () => void;
-}
-
-interface StoredUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
 }
 
 const IconCart = () => (
@@ -36,12 +30,7 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
 
   useEffect(() => {
     const loadUser = () => {
-      try {
-        const storedUser = window.localStorage.getItem("ofsUser");
-        setUser(storedUser ? (JSON.parse(storedUser) as StoredUser) : null);
-      } catch {
-        setUser(null);
-      }
+      setUser(getStoredUser());
     };
 
     loadUser();
@@ -55,13 +44,14 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
   }, []);
 
   const frosted = alwaysFrosted || scrolled;
+  const isCustomer = isCustomerUser(user);
   const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "U";
 
-  const profileLink = user ? (
+  const profileLink = isCustomer ? (
     <Link
       href="/user/profile"
       aria-label="Open profile"
-      title={user.firstName ? `${user.firstName}'s profile` : "Open profile"}
+      title={user?.firstName ? `${user.firstName}'s profile` : "Open profile"}
       className="flex items-center gap-3"
     >
       <div className="w-11 h-11 rounded-full bg-gradient-to-br from-sage to-forest text-cream border-2 border-white/70 flex items-center justify-center shadow-md shadow-forest/15">
@@ -77,6 +67,23 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
     </Link>
   );
 
+  const customerLinks = isCustomer ? (
+    <>
+      <Link
+        href="/user/browse"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Shop
+      </Link>
+      <Link
+        href="/user/order-history"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Orders
+      </Link>
+    </>
+  ) : null;
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5 transition-all duration-500 ${
@@ -90,6 +97,7 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
       <div className="flex items-center gap-8">
         {onCartClick !== undefined ? (
           <>
+            {customerLinks}
             <button
               onClick={onCartClick}
               className="relative flex items-center gap-2 bg-forest text-cream px-4 py-2.5 rounded-full text-sm font-medium hover:bg-sage transition-colors duration-200 shadow-md shadow-forest/20"
@@ -106,12 +114,16 @@ export default function Navbar({ alwaysFrosted = false, cartItemCount, onCartCli
           </>
         ) : (
           <>
-            <Link href="/#how-it-works" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
-              How It Works
-            </Link>
-            <Link href="/#features" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
-              Features
-            </Link>
+            {customerLinks ?? (
+              <>
+                <Link href="/#how-it-works" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
+                  How It Works
+                </Link>
+                <Link href="/#features" className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200">
+                  Features
+                </Link>
+              </>
+            )}
             {profileLink}
           </>
         )}
