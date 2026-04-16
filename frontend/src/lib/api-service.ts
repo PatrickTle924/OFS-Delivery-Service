@@ -220,3 +220,13 @@ export const changePassword = async (
 
   return response.json();
 };
+
+export const fetchOrderDetails = async (orderId: number) => {
+  const response = await fetch(`${API_BASE_URL}/orders/${orderId}`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch order details");
+  }
+
+  return response.json();
+};
