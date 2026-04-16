@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Navbar from "@/components/Navbar";
 import CustomerRoute from "@/components/CustomerRoute";
 import { fetchOrderHistory, OrderHistoryItem } from "@/lib/api-service";
+import EmployeeSidebar from "@/components/EmployeeSidebar";
 
 type OrderStatus = "pending" | "delivered" | "cancelled" | "in progress";
 
@@ -315,7 +315,7 @@ export default function OrdersPage() {
         <div className="pointer-events-none fixed top-[-10%] left-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.18)_0%,transparent_65%)] -z-10" />
         <div className="pointer-events-none fixed bottom-[-10%] right-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.10)_0%,transparent_65%)] -z-10" />
 
-        <Navbar alwaysFrosted />
+        <EmployeeSidebar active="orders" />
 
         <main className="mx-auto max-w-7xl px-8 pb-16 pt-28">
           <div className="mb-10">

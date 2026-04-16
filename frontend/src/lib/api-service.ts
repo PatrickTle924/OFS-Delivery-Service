@@ -288,21 +288,6 @@ export const changePassword = async (
   return result;
 };
 
-export async function fetchInventory() {
-  const res = await fetch(`${API_BASE_URL}/inventory`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error || "Failed to fetch inventory");
-  }
-
-  return data;
-}
-
 export const logoutUser = () => {
   if (typeof window !== "undefined") {
     localStorage.removeItem("token");
@@ -319,3 +304,187 @@ export const fetchOrderDetails = async (orderId: number) => {
 
   return response.json();
 };
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  quantity: number;
+  weight: string;
+  price: number;
+  reorderLevel: number;
+  lastRestocked: string;
+}
+
+export async function fetchInventory(): Promise<InventoryItem[]> {
+  const res = await fetch(`${API_BASE_URL}/inventory`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to fetch inventory");
+  }
+
+  return data;
+}
+
+export async function createProduct(productData: {
+  name: string;
+  description: string;
+  category: string;
+  quantity: number;
+  weight: number;
+  price: number;
+}) {
+  const res = await fetch(`${API_BASE_URL}/products`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(productData),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to add product");
+  }
+
+  return data;
+}
+
+export async function updateProduct(
+  productId: string,
+  productData: {
+    name: string;
+    description: string;
+    category: string;
+    quantity: number;
+    weight: number;
+    price: number;
+  },
+) {
+  const res = await fetch(`${API_BASE_URL}/products/${productId}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(productData),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to update product");
+  }
+
+  return data;
+}
+
+export async function deleteProduct(productId: string) {
+  const res = await fetch(`${API_BASE_URL}/products/${productId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to delete product");
+  }
+
+  return data;
+}
+
+export interface PlaceOrderInput {
+  deliveryInfo: {
+    fullName: string;
+    phone: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    zipCode: string;
+    instructions: string;
+  };
+  items: {
+    product: {
+      id: number;
+      name: string;
+      price: number;
+      weight: number;
+    };
+    quantity: number;
+  }[];
+  subtotal: number;
+  deliveryFee: number;
+  tax: number;
+  total: number;
+  total_weight: number;
+}
+
+export interface PlaceOrderResponse {
+  message: string;
+  order_id: number;
+}
+
+export async function placeOrder(
+  payload: PlaceOrderInput,
+): Promise<PlaceOrderResponse> {
+  const response = await fetch(`${API_BASE_URL}/orders`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to place order");
+  }
+
+  return data;
+}
+
+export interface ReportItem {
+  report_id: number;
+  order_id: number;
+  customer_id: number;
+  report_type: string;
+  description: string;
+  status: "open" | "in_review" | "resolved";
+  created_at: string;
+}
+
+export async function fetchReports(): Promise<ReportItem[]> {
+  const response = await fetch(`${API_BASE_URL}/reports`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to fetch reports");
+  }
+
+  return data;
+}
+
+export async function updateReportStatus(
+  reportId: number,
+  status: "open" | "in_review" | "resolved",
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/reports/${reportId}`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ status }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to update report");
+  }
+
+  return data;
+}

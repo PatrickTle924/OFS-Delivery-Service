@@ -65,7 +65,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return prev.map((item) =>
           item.product.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
-            : item
+            : item,
         );
       }
 
@@ -85,7 +85,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return prev.map((item) =>
         item.product.id === id
           ? { ...item, quantity: item.quantity - 1 }
-          : item
+          : item,
       );
     });
   };
@@ -104,12 +104,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const totalItems = useMemo(
     () => cart.reduce((sum, item) => sum + item.quantity, 0),
-    [cart]
+    [cart],
   );
 
   const totalPrice = useMemo(
-    () => cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
-    [cart]
+    () =>
+      cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+    [cart],
   );
 
   const value = useMemo(
@@ -123,7 +124,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clearCart,
       getQuantity,
     }),
-    [cart, totalItems, totalPrice]
+    [cart, totalItems, totalPrice],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

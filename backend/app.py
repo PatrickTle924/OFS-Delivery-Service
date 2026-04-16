@@ -833,9 +833,21 @@ def start_trip(trip_id):
 
     return jsonify({"message": "Trip started"}), 200
 
-def is_near(lng1, lat1, lng2, lat2, threshold=0.0001):
-    return abs(lng1 - lng2) <= threshold and abs(lat1 - lat2) <= threshold
+from math import radians, sin, cos, sqrt, atan2
 
+def is_near(lng1, lat1, lng2, lat2, threshold_meters=15):
+    R = 6371000  # Earth radius in meters
+
+    lat1_r = radians(lat1)
+    lat2_r = radians(lat2)
+    dlat = radians(lat2 - lat1)
+    dlng = radians(lng2 - lng1)
+
+    a = sin(dlat / 2) ** 2 + cos(lat1_r) * cos(lat2_r) * sin(dlng / 2) ** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    distance = R * c
+    return distance <= threshold_meters
 
 @app.route("/trip-progress/<int:trip_id>", methods=["POST"])
 @role_required("employee")

@@ -2,27 +2,25 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 interface EmployeeSidebarProps {
-  active: "dashboard" | "inventory" | "orders" | "routing";
+  active: "dashboard" | "inventory" | "orders" | "routing" | "reports";
 }
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", href: "/empdashboard" },
   { key: "inventory", label: "Inventory", href: "/inventory" },
-  { key: "orders", label: "Orders", href: "/orders" },
   { key: "routing", label: "Deliveries", href: "/routing" },
+  { key: "reports", label: "Reports", href: "/reports" },
 ] as const;
 
 export default function EmployeeSidebar({ active }: EmployeeSidebarProps) {
   const router = useRouter();
+  const { logout } = useAuth();
 
   const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("ofsUser");
-      window.dispatchEvent(new Event("ofs-auth-changed"));
-    }
-
+    logout(); // clears token + user from context
     router.push("/login-register");
   };
 

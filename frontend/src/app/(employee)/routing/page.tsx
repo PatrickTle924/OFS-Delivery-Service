@@ -5,7 +5,6 @@ import EmployeeSidebar from "@/components/EmployeeSidebar";
 import { DeliveryRoutes } from "@/components/DeliveryRoutes";
 import { SuggestedRoutes } from "@/components/SuggestedRoutes";
 import { ActiveDeliveryCard } from "@/components/ActiveDeliveryCard";
-
 import {
   Order,
   RouteOption,
@@ -20,7 +19,7 @@ import {
   startSimulation,
   startTrip,
 } from "@/lib/api-service";
-import Link from "next/dist/client/link";
+import Link from "next/link";
 import EmployeeRoute from "@/components/EmployeeRoute";
 
 export default function DeliveryDashboardPage() {
@@ -195,14 +194,15 @@ export default function DeliveryDashboardPage() {
   return (
     <EmployeeRoute>
       <div
-        className="min-h-screen"
+        className="min-h-screen flex"
         style={{
           background: "var(--color-cream)",
           fontFamily: "'DM Sans', sans-serif",
         }}
       >
         <EmployeeSidebar active="routing" />
-        <main className="w-full px-4 py-6 md:px-6">
+
+        <main className="flex-1 px-4 py-6 md:px-6">
           <div className="flex flex-col lg:flex-row gap-5">
             <div className="w-full lg:w-80 flex-shrink-0 lg:h-[calc(100vh-5.5rem)] lg:sticky lg:top-6">
               {loadingOrders ? (
@@ -250,14 +250,15 @@ export default function DeliveryDashboardPage() {
                   onApprove={handleApprove}
                 />
               )}
+
+              <Link
+                href="/empdashboard"
+                className="absolute bottom-6 right-6 text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
+              >
+                ← Back to Dashboard
+              </Link>
             </div>
           </div>
-          <Link
-            href="/empdashboard"
-            className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-          >
-            ← Back to Dashboard
-          </Link>
         </main>
       </div>
     </EmployeeRoute>

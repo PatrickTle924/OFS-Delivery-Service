@@ -53,7 +53,10 @@ def seed_orders_for_user(user_email: str, num_orders: int = 3) -> None:
         delivery_fee = 0.0 if total_weight < 20 else 4.99
         total_cost = round(subtotal + delivery_fee, 2)
 
-        ordered_at = datetime.now(timezone.utc) - timedelta(days=(num_orders - i), hours=random.randint(1, 10))
+        ordered_at = datetime.now(timezone.utc) - timedelta(
+            days=(num_orders - i),
+            hours=random.randint(1, 10)
+        )
 
         order = Order(
             customer_id=customer_profile.id,
@@ -67,13 +70,9 @@ def seed_orders_for_user(user_email: str, num_orders: int = 3) -> None:
             total_weight=round(total_weight, 2),
             delivery_fee=delivery_fee,
             total_cost=total_cost,
-            status=random.choice(["pending", "delivered", "cancelled"]),
+            status="pending",
             ordered_at=ordered_at,
         )
-
-        if order.status == "cancelled":
-            order.cancelled_at = ordered_at + timedelta(hours=1)
-            order.cancel_reason = "Customer changed mind"
 
         db.session.add(order)
         db.session.flush()
@@ -88,11 +87,10 @@ def seed_orders_for_user(user_email: str, num_orders: int = 3) -> None:
             )
             db.session.add(order_item)
 
-        payment_status = "paid" if order.status != "cancelled" else "refunded"
         payment = Payment(
             order_id=order.order_id,
             payment_method="card",
-            payment_status=payment_status,
+            payment_status="paid",
             currency="USD",
             paid_amount=total_cost,
             paid_at=ordered_at + timedelta(minutes=5),
@@ -104,7 +102,7 @@ def seed_orders_for_user(user_email: str, num_orders: int = 3) -> None:
         created_order_ids.append(order.order_id)
 
     db.session.commit()
-    print(f"Created {len(created_order_ids)} orders for {user_email}: {created_order_ids}")
+    print(f"Created {len(created_order_ids)} pending orders for {user_email}: {created_order_ids}")
 
 
 if __name__ == "__main__":

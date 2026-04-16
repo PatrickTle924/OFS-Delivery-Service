@@ -289,16 +289,6 @@ export default function DashboardPage() {
                       Manage Inventory
                     </p>
                   </Link>
-
-                  <Link
-                    href="/orders/new"
-                    className="block p-4 rounded-lg bg-mint/10 border border-mint/30 hover:bg-mint/20 transition-colors text-center"
-                  >
-                    <p className="font-medium text-forest text-sm font-bold">
-                      Create Order
-                    </p>
-                  </Link>
-
                   <Link
                     href="/reports"
                     className="block p-4 rounded-lg bg-blue-100/50 border border-blue-200/50 hover:bg-blue-100 transition-colors text-center"
