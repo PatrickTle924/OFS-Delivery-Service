@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { registerUser, loginUser } from "@/lib/api-service";
 import type { RegisterInput } from "@/types/auth";
+import { useAuth } from "@/context/AuthContext";
 
 type Mode = "login" | "register";
 type Role = "customer" | "employee";
@@ -80,11 +81,24 @@ function Field({
 // ── Page ──────────────────────────────────────────────────────────
 export default function LoginRegisterPage() {
   const router = useRouter();
+  const { user, loading: authLoading, setUser } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [role, setRole] = useState<Role>("customer");
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+
+    if (user.role === "employee") {
+      router.replace("/empdashboard");
+    } else {
+      router.replace("/user/browse");
+    }
+  }, [user, authLoading, router]);
+  if (authLoading) return null;
+  if (user) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -101,6 +115,7 @@ export default function LoginRegisterPage() {
         if (form.password !== form.confirmPassword) {
           throw new Error("Passwords do not match.");
         }
+
         const registrationPayload: RegisterInput =
           role === "customer"
             ? {
@@ -132,14 +147,15 @@ export default function LoginRegisterPage() {
           email: form.email,
           password: form.password,
         });
-        if (typeof window !== "undefined" && response.user) {
-          localStorage.setItem("ofsUser", JSON.stringify(response.user));
-          window.dispatchEvent(new Event("ofs-auth-changed"));
-        }
-        if (response.user?.role === "employee") {
-          router.push("/empdashboard");
-        } else {
-          router.push("/user/browse");
+
+        if (response.user) {
+          setUser(response.user);
+
+          if (response.user.role === "employee") {
+            router.push("/empdashboard");
+          } else {
+            router.push("/user/browse");
+          }
         }
       }
     } catch (err) {

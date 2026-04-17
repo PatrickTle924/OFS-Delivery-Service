@@ -1,34 +1,277 @@
-# flask file
-
 import os
+import json
+import requests
+from functools import wraps
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
-import uuid
-import enum
+from flask_jwt_extended import (
+    JWTManager,
+    create_access_token,
+    get_jwt,
+    get_jwt_identity,
+    jwt_required,
+)
+from sqlalchemy import text
 import os
 from datetime import timezone
-from sqlalchemy import text, Enum
-from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product
+from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report
 from database import db
-import time
-import requests
-import json
-from datetime import datetime
-
 
 app = Flask(__name__)
-CORS(app) # Allow Next.js to communicate with Flask
-# kept main 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:password@db:5432/delivery_db')
-# Connect the db instance to our flask app
+CORS(app)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL',
+    'postgresql://user:password@db:5432/delivery_db'
+)
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret-change-me")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 60 * 60 * 24  # 24 hours
+
 db.init_app(app)
+jwt = JWTManager(app)
 
 
 MAPBOX_ACCESS_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
 
+def role_required(*allowed_roles):
+    def decorator(fn):
+        @wraps(fn)
+        @jwt_required()
+        def wrapper(*args, **kwargs):
+            claims = get_jwt()
+            user_role = claims.get("role")
+
+            if user_role not in allowed_roles:
+                return jsonify({"error": "Access denied"}), 403
+
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def get_current_user():
+    user_id = get_jwt_identity()
+    return User.query.get(user_id)
+
+MOCK_PRODUCTS = [
+    {
+        "name": "Organic Fuji Apples",
+        "category": "Fruits",
+        "cost": 4.99,
+        "weight": 2.0,
+        "stock": 50,
+        "description": "Crisp, sweet apples from local orchards.",
+        "imageUrl": "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=400&q=80",
+    },
+    {
+        "name": "Fresh Blueberries",
+        "category": "Fruits",
+        "cost": 5.49,
+        "weight": 0.75,
+        "stock": 30,
+        "description": "Plump, antioxidant-rich blueberries.",
+        "imageUrl": "https://images.unsplash.com/photo-1498557850523-fd3d118b962e?w=400&q=80",
+    },
+    {
+        "name": "Heirloom Tomatoes",
+        "category": "Vegetables",
+        "cost": 3.99,
+        "weight": 1.5,
+        "stock": 40,
+        "description": "Vine-ripened heirloom varieties.",
+        "imageUrl": "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&q=80",
+    },
+    {
+        "name": "Baby Spinach",
+        "category": "Vegetables",
+        "cost": 2.99,
+        "weight": 0.5,
+        "stock": 60,
+        "description": "Tender baby spinach, triple-washed.",
+        "imageUrl": "https://images.unsplash.com/photo-1576045057995-568f588f82fb?w=400&q=80",
+    },
+    {
+        "name": "Organic Broccoli",
+        "category": "Vegetables",
+        "cost": 2.49,
+        "weight": 1.25,
+        "stock": 45,
+        "description": "Locally sourced, no pesticides.",
+        "imageUrl": "https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?w=400&q=80",
+    },
+    {
+        "name": "Free-Range Chicken Breast",
+        "category": "Meats",
+        "cost": 11.99,
+        "weight": 2.5,
+        "stock": 20,
+        "description": "Humanely raised, no hormones.",
+        "imageUrl": "https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=400&q=80",
+    },
+    {
+        "name": "Grass-Fed Ribeye",
+        "category": "Meats",
+        "cost": 13.49,
+        "weight": 2.0,
+        "stock": 15,
+        "description": "100% grass-fed, rich in omega-3.",
+        "imageUrl": "https://images.unsplash.com/photo-1603048297172-c92544798d5a?w=400&q=80",
+    },
+    {
+        "name": "Wild Salmon Fillet",
+        "category": "Meats",
+        "cost": 16.99,
+        "weight": 1.5,
+        "stock": 12,
+        "description": "Alaskan wild-caught, fresh-frozen.",
+        "imageUrl": "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&q=80",
+    },
+    {
+        "name": "Organic Whole Milk",
+        "category": "Dairy",
+        "cost": 5.29,
+        "weight": 8.6,
+        "stock": 35,
+        "description": "From pasture-raised, local cows.",
+        "imageUrl": "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&q=80",
+    },
+    {
+        "name": "Greek Yogurt",
+        "category": "Dairy",
+        "cost": 4.49,
+        "weight": 2.0,
+        "stock": 28,
+        "description": "Thick, creamy, protein-packed.",
+        "imageUrl": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400&q=80",
+    },
+    {
+        "name": "Aged Cheddar",
+        "category": "Dairy",
+        "cost": 6.99,
+        "weight": 1.0,
+        "stock": 22,
+        "description": "Sharp 12-month aged cheddar block.",
+        "imageUrl": "https://images.unsplash.com/photo-1618164435735-413d3b066c9a?w=400&q=80",
+    },
+    {
+        "name": "Sourdough Loaf",
+        "category": "Bakery",
+        "cost": 7.49,
+        "weight": 2.0,
+        "stock": 18,
+        "description": "Long-fermented, hand-shaped loaf.",
+        "imageUrl": "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?w=400&q=80",
+    },
+    {
+        "name": "Multigrain Rolls",
+        "category": "Bakery",
+        "cost": 4.99,
+        "weight": 1.25,
+        "stock": 24,
+        "description": "Six-seed blend, baked daily.",
+        "imageUrl": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&q=80",
+    },
+    {
+        "name": "Extra Virgin Olive Oil",
+        "category": "Pantry",
+        "cost": 12.99,
+        "weight": 2.5,
+        "stock": 30,
+        "description": "Cold-pressed, single-origin.",
+        "imageUrl": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&q=80",
+    },
+    {
+        "name": "Organic Brown Rice",
+        "category": "Pantry",
+        "cost": 3.99,
+        "weight": 4.0,
+        "stock": 50,
+        "description": "Long-grain, whole grain goodness.",
+        "imageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&q=80",
+    },
+    {
+        "name": "Raw Wildflower Honey",
+        "category": "Pantry",
+        "cost": 9.49,
+        "weight": 1.5,
+        "stock": 20,
+        "description": "Unfiltered, local wildflower honey.",
+        "imageUrl": "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=400&q=80",
+    },
+]
+
+@app.route("/change-password", methods=["POST"])
+@jwt_required()
+def change_password():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    data = request.get_json()
+    current_password = data.get("currentPassword")
+    new_password = data.get("newPassword")
+
+    if not current_password or not new_password:
+        return jsonify({"error": "Both current and new passwords are required"}), 400
+
+    if not user.check_password(current_password):
+        return jsonify({"error": "Current password is incorrect"}), 400
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    return jsonify({"message": "Password changed successfully"}), 200
+
+
+def seed_products():
+    for item in MOCK_PRODUCTS:
+        existing = Product.query.filter_by(name=item["name"]).first()
+        if existing:
+            if not existing.image_url:
+                existing.image_url = item["imageUrl"]
+            continue
+
+        db.session.add(
+            Product(
+                name=item["name"],
+                category=item["category"],
+                cost=item["cost"],
+                image_url=item["imageUrl"],
+                weight=item["weight"],
+                stock=item["stock"],
+                description=item["description"],
+            )
+        )
+
+    db.session.commit()
+
+# funct to add image to table 
+def run_schema_migrations():
+    db.session.execute(
+        text("ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url VARCHAR(500)")
+    )
+    db.session.execute(
+        text("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP")
+    )
+    db.session.commit()
+
+
+with app.app_context():
+    try:
+        db.create_all()
+        run_schema_migrations()
+        seed_products()
+        print("✅ Database tables initialized and products seeded successfully.")
+    except Exception as e:
+        print(f"❌ Error initializing database: {e}")
+
 @app.route('/products', methods=['GET'])
+@jwt_required()
+
 def get_products():
     products = Product.query.order_by(Product.product_id.asc()).all()
     return jsonify([
@@ -92,12 +335,26 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
+
+    if not data or not data.get("email") or not data.get("password"):
+        return jsonify({"error": "Email and password are required"}), 400
+
     user = User.query.filter_by(email=data['email']).first()
-    
+
     if user and user.check_password(data['password']):
-        # generate JWT here, eventually
+        access_token = create_access_token(
+            identity=user.id,
+            additional_claims={
+                "role": user.role.value,
+                "email": user.email,
+                "firstName": user.first_name,
+                "lastName": user.last_name,
+            }
+        )
+
         return jsonify({
             "message": "Login successful",
+            "token": access_token,
             "user": {
                 "id": user.id,
                 "firstName": user.first_name,
@@ -106,11 +363,12 @@ def login():
                 "role": user.role.value,
             }
         }), 200
-        
+
     return jsonify({"error": "Invalid credentials"}), 401
 
 
 @app.route('/orders', methods=['GET'])
+@role_required("employee")
 def get_orders():
     orders = Order.query.filter_by(status="pending").all()
 
@@ -133,6 +391,7 @@ def get_orders():
     ])
 
 @app.route('/orders', methods=['POST'])
+@jwt_required()
 def create_order():
     data = request.get_json()
 
@@ -142,10 +401,7 @@ def create_order():
     if not items:
         return jsonify({"error": "No items in order"}), 400
     
-    user_id = data.get("userId")
-
-    if not user_id:
-        return jsonify({"error": "Missing user"}), 400
+    user_id = get_jwt_identity()
 
     customer = CustomerProfile.query.filter_by(user_id=user_id).first()
 
@@ -197,7 +453,6 @@ def create_order():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500        
-
 
 
 def build_v1_coordinates(selected_orders):
@@ -335,6 +590,7 @@ def transform_v1_solution_for_frontend(selected_orders, solution):
     }
 
 @app.route("/optimize-routes", methods=["POST"])
+@role_required("employee")
 def optimize_routes():
     data = request.get_json()
     selected_order_ids = data.get("orderIds", [])
@@ -481,6 +737,7 @@ def build_active_delivery_from_trip(trip):
     return {"activeDelivery": active_delivery}
 
 @app.route("/approve-route", methods=["POST"])
+@role_required("employee")
 def approve_route():
     data = request.get_json()
 
@@ -504,7 +761,7 @@ def approve_route():
             {
                 "error": "Some orders are already assigned to a trip",
                 "orderIds": already_assigned,
-            }
+            } 
         ), 400
 
     new_trip = Trip(
@@ -529,8 +786,8 @@ def approve_route():
 
     return jsonify({"activeDelivery": build_active_delivery_from_trip(new_trip)["activeDelivery"]}), 201
 
-
 @app.route("/active-delivery", methods=["GET"])
+@role_required("employee")
 def get_active_delivery():
     active_trip = (
         Trip.query.filter(Trip.status.in_(["assigned", "in_progress"]))
@@ -541,10 +798,18 @@ def get_active_delivery():
     if not active_trip:
         return jsonify({"activeDelivery": None}), 200
 
+    if active_trip.status == "in_progress":
+        changed = sync_trip_progress(active_trip)
+        if changed:
+            db.session.commit()
+
+    if active_trip.status == "completed":
+        return jsonify({"activeDelivery": None}), 200
+
     return jsonify(build_active_delivery_from_trip(active_trip)), 200
 
-
 @app.route("/start-trip/<int:trip_id>", methods=["POST"])
+@role_required("employee")
 def start_trip(trip_id):
     trip = Trip.query.get(trip_id)
     if not trip:
@@ -576,54 +841,52 @@ def start_trip(trip_id):
 
     return jsonify({"message": "Trip started"}), 200
 
-def is_near(lng1, lat1, lng2, lat2, threshold=0.0005):
-    return abs(lng1 - lng2) <= threshold and abs(lat1 - lat2) <= threshold
+from math import radians, sin, cos, sqrt, atan2
 
-@app.route("/trip-progress/<int:trip_id>", methods=["POST"])
-def advance_trip_progress(trip_id):
-    trip = Trip.query.get(trip_id)
-    if not trip:
-        return jsonify({"error": "Trip not found"}), 404
+def is_near(lng1, lat1, lng2, lat2, threshold_meters=15):
+    R = 6371000  # Earth radius in meters
 
-    if trip.status != "in_progress":
-        return jsonify({"error": "Trip is not in progress"}), 400
+    lat1_r = radians(lat1)
+    lat2_r = radians(lat2)
+    dlat = radians(lat2 - lat1)
+    dlng = radians(lng2 - lng1)
+
+    a = sin(dlat / 2) ** 2 + cos(lat1_r) * cos(lat2_r) * sin(dlng / 2) ** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    distance = R * c
+    return distance <= threshold_meters
+
+def sync_trip_progress(trip):
+    if trip.status != "in_progress" or not trip.started_at or not trip.route_geometry:
+        return False
 
     try:
-        route_geometry = json.loads(trip.route_geometry) if trip.route_geometry else None
+        route_geometry = json.loads(trip.route_geometry)
     except Exception:
-        return jsonify({"error": "Invalid route geometry"}), 400
+        return False
 
-    if not route_geometry or "coordinates" not in route_geometry:
-        return jsonify({"error": "No route coordinates"}), 400
-
-    coords = route_geometry["coordinates"]
+    coords = route_geometry.get("coordinates", [])
     if not coords:
-        return jsonify({"error": "Empty route coordinates"}), 400
+        return False
 
-    next_index = (trip.current_index or 0) + 1
+    started_at = trip.started_at
+    if started_at.tzinfo is not None:
+        now = datetime.now(timezone.utc)
+    else:
+        now = datetime.utcnow()
 
-    if next_index >= len(coords):
-        trip.current_index = len(coords) - 1
-        trip.current_lng = coords[-1][0]
-        trip.current_lat = coords[-1][1]
-        trip.status = "completed"
-        trip.completed_at = datetime.utcnow()
+    elapsed_seconds = max(0, int((now - started_at).total_seconds()))
 
-        orders = Order.query.filter_by(trip_id=trip.trip_id).all()
-        for order in orders:
-            order.status = "delivered"
+    # one route point per second
+    new_index = min(elapsed_seconds, len(coords) - 1)
+    changed = False
 
-        db.session.commit()
-
-        return jsonify({
-            "message": "Trip completed",
-            "completed": True,
-            **build_active_delivery_from_trip(trip)
-        }), 200
-
-    trip.current_index = next_index
-    trip.current_lng = coords[next_index][0]
-    trip.current_lat = coords[next_index][1]
+    if trip.current_index != new_index:
+        trip.current_index = new_index
+        trip.current_lng = coords[new_index][0]
+        trip.current_lat = coords[new_index][1]
+        changed = True
 
     assigned_orders = Order.query.filter_by(trip_id=trip.trip_id).all()
     for order in assigned_orders:
@@ -635,27 +898,29 @@ def advance_trip_progress(trip_id):
                 trip.current_lng,
                 trip.current_lat,
                 order.delivery_lng,
-                order.delivery_lat
+                order.delivery_lat,
             )
         ):
             order.status = "delivered"
+            changed = True
 
-    db.session.commit()
+    if new_index >= len(coords) - 1 and trip.status != "completed":
+        trip.status = "completed"
+        trip.completed_at = now
 
-    return jsonify({
-        "completed": False,
-        **build_active_delivery_from_trip(trip)
-    }), 200
+        for order in assigned_orders:
+            if order.status != "delivered":
+                order.status = "delivered"
 
+        changed = True
+
+    return changed
 
 @app.route('/profile', methods=['GET'])
+@jwt_required()
 def get_profile():
-    email = request.args.get('email', '').strip().lower()
-
-    if not email:
-        return jsonify({"error": "Email is required"}), 400
-
-    user = User.query.filter(db.func.lower(User.email) == email).first()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
 
     if not user:
         return jsonify({"error": "User not found"}), 404
@@ -664,7 +929,7 @@ def get_profile():
     created_at = user.created_at.astimezone(timezone.utc) if user.created_at else None
 
     return jsonify({
-        "id": user.id,  
+        "id": user.id,
         "firstName": user.first_name,
         "lastName": user.last_name,
         "email": user.email,
@@ -674,9 +939,26 @@ def get_profile():
         "role": user.role.value,
     }), 200
 
+@app.route("/me", methods=["GET"])
+@jwt_required()
+def me():
+    user = get_current_user()
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "id": user.id,
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "email": user.email,
+        "role": user.role.value,
+    }), 200
 
 
 @app.route('/inventory', methods=['GET'])
+@role_required("employee")
+
 def get_inventory():
     products = Product.query.all()
 
@@ -706,6 +988,8 @@ def get_inventory():
 
 
 @app.route('/products/<int:product_id>', methods=['PUT'])
+@role_required("employee")
+
 def update_product(product_id):
     product = Product.query.get(product_id)
 
@@ -747,6 +1031,8 @@ def update_product(product_id):
     }), 200
 
 @app.route("/products/<int:product_id>", methods=["DELETE"])
+@role_required("employee")
+
 def delete_product(product_id):
     try:
         product = Product.query.get(product_id)
@@ -764,6 +1050,8 @@ def delete_product(product_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route("/products", methods=["POST"])
+@role_required("employee")
+
 def create_product():
     try:
         data = request.get_json()
@@ -837,8 +1125,23 @@ def get_order_details(order_id):
     }), 200
 
 @app.route('/orders/history', methods=['GET'])
+@role_required("customer")
 def get_order_history():
-    orders = Order.query.order_by(Order.ordered_at.desc()).all()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if not user.customer_profile:
+        return jsonify({"error": "Only customers have order history"}), 403
+
+    orders = (
+        Order.query
+        .filter(Order.customer_id == user.customer_profile.id)
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
 
     return jsonify([
         {
@@ -846,12 +1149,141 @@ def get_order_history():
             "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
             "total_cost": o.total_cost,
             "status": o.status,
-            "item_count": len(o.order_items)
+            "item_count": len(o.order_items),
+            "delivery_address": o.delivery_address,
+            "total_weight": o.total_weight,
         }
         for o in orders
     ]), 200
 
+
+@app.route('/orders/active', methods=['GET'])
+@role_required("customer")
+def get_active_orders():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if not user.customer_profile:
+        return jsonify({"error": "Only customers can view active orders"}), 403
+
+    active_statuses = ["pending", "assigned", "in_progress"]
+
+    orders = (
+        Order.query
+        .filter(
+            Order.customer_id == user.customer_profile.id,
+            Order.status.in_(active_statuses)
+        )
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
+
+    touched_trip_ids = set()
+
+    for o in orders:
+        trip = o.trip
+        if trip and trip.status == "in_progress" and trip.trip_id not in touched_trip_ids:
+            sync_trip_progress(trip)
+            touched_trip_ids.add(trip.trip_id)
+
+    if touched_trip_ids:
+        db.session.commit()
+
+    # re-query in case some orders became delivered and dropped out of active list
+    orders = (
+        Order.query
+        .filter(
+            Order.customer_id == user.customer_profile.id,
+            Order.status.in_(active_statuses)
+        )
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
+
+    results = []
+
+    for o in orders:
+        trip = o.trip
+
+        route_geometry = None
+        traveled_path = None
+        robot_position = None
+        trip_status = None
+        trip_id = None
+        map_points = []
+
+        if trip:
+            trip_status = trip.status
+            trip_id = trip.trip_id
+
+            if trip.route_geometry:
+                try:
+                    route_geometry = json.loads(trip.route_geometry)
+                    coords = route_geometry.get("coordinates", [])
+
+                    if coords:
+                        current_index = trip.current_index or 0
+                        traveled_coords = coords[: current_index + 1]
+                        traveled_path = {
+                            "type": "LineString",
+                            "coordinates": traveled_coords,
+                        }
+                except Exception:
+                    route_geometry = None
+                    traveled_path = None
+
+            robot_position = (
+                {
+                    "lng": trip.current_lng,
+                    "lat": trip.current_lat,
+                }
+                if trip.current_lng is not None and trip.current_lat is not None
+                else None
+            )
+
+            assigned_orders = (
+                Order.query.filter(Order.trip_id == trip.trip_id)
+                .order_by(Order.order_id.asc())
+                .all()
+            )
+
+            for i, order in enumerate(assigned_orders, start=1):
+                if order.delivery_lat is None or order.delivery_lng is None:
+                    continue
+
+                map_points.append({
+                    "lng": order.delivery_lng,
+                    "lat": order.delivery_lat,
+                    "label": str(i),
+                    "completed": order.status == "delivered",
+                })
+
+        results.append({
+            "order_id": o.order_id,
+            "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
+            "total_cost": o.total_cost,
+            "status": o.status,
+            "item_count": len(o.order_items),
+            "delivery_address": o.delivery_address,
+            "total_weight": o.total_weight,
+            "tripId": f"Trip #{trip_id}" if trip_id else None,
+            "tripStatus": trip_status,
+            "routeGeometry": route_geometry,
+            "traveledPath": traveled_path,
+            "robotPosition": robot_position,
+            "mapPoints": map_points,
+            "eta": round(trip.estimated_time or 0) if trip else None,
+        })
+
+    return jsonify(results), 200
+
+
+
 @app.route('/reports', methods=['POST'])
+@role_required("customer")
 def create_report():
     data = request.get_json()
 
@@ -883,8 +1315,8 @@ def create_report():
 
     return jsonify({"message": "Report submitted successfully", "report_id": report.report_id}), 201
 
-
 @app.route('/reports', methods=['GET'])
+@role_required("employee")
 def get_reports():
     reports = Report.query.order_by(Report.created_at.desc()).all()
 
@@ -903,6 +1335,7 @@ def get_reports():
 
 
 @app.route('/reports/<int:report_id>', methods=['PUT'])
+@role_required("employee")
 def update_report(report_id):
     report = Report.query.get(report_id)
     if not report:
@@ -920,9 +1353,83 @@ def update_report(report_id):
     return jsonify({"message": "Report updated successfully"}), 200
 
 
+@app.route('/orders/all', methods=['GET'])
+@role_required("employee")
+def get_all_orders():
+    orders = (
+        Order.query
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
+
+    results = []
+
+    for o in orders:
+        # get customer + user info
+        customer = CustomerProfile.query.get(o.customer_id)
+        user = User.query.get(customer.user_id) if customer else None
+
+        customer_name = (
+            f"{user.first_name} {user.last_name}"
+            if user else f"Customer #{o.customer_id}"
+        )
+
+        results.append({
+            "id": o.order_id,
+            "label": f"Order #{o.order_id}",
+            "customerId": o.customer_id,
+            "customerName": customer_name,
+
+            "weight": o.total_weight,
+            "address": o.delivery_address,
+            "city": o.delivery_city,
+            "state": o.delivery_state,
+            "zip": o.delivery_zip,
+
+            "price": o.total_cost,
+            "lat": o.delivery_lat,
+            "lng": o.delivery_lng,
+
+            "status": o.status,
+
+            "orderedAt": o.ordered_at.isoformat() if o.ordered_at else None,
+
+            "completedAt": (
+                o.updated_at.isoformat()
+                if o.status == "delivered" and o.updated_at
+                else None
+            ),
+        })
+
+    return jsonify(results), 200
+
+@app.route("/cancel-route/<int:trip_id>", methods=["POST"])
+@role_required("employee")
+def cancel_route(trip_id):
+    trip = Trip.query.get(trip_id)
+    if not trip:
+        return jsonify({"error": "Trip not found"}), 404
+
+    if trip.status == "completed":
+        return jsonify({"error": "Completed trips cannot be cancelled"}), 400
+
+    assigned_orders = Order.query.filter_by(trip_id=trip.trip_id).all()
+
+    for order in assigned_orders:
+        order.trip_id = None
+
+        if order.status != "delivered":
+            order.status = "pending"
+
+    trip.status = "cancelled"
+
+    db.session.commit()
+
+    return jsonify({"message": "Route cancelled successfully"}), 200
+
+
 # for local development without Docker
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
 
 

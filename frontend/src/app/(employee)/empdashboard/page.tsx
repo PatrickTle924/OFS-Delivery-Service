@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import EmployeeRoute from "@/components/EmployeeRoute";
+import { useAuth } from "@/context/AuthContext";
+import {
+  fetchInventory,
+  fetchAllOrders,
+  type EmployeeOrderItem,
+} from "@/lib/api-service";
 import EmployeeSidebar from "@/components/EmployeeSidebar";
 
 interface Order {
-  id: string;
+  id: number;
   customerName: string;
-  status: "pending" | "in-progress" | "completed";
+  status: "pending" | "assigned" | "in_progress" | "delivered" | "cancelled";
   total: number;
-  date: string;
+  orderedAt: string | null;
+  completedAt: string | null;
 }
 
 interface LowStockItem {
@@ -20,170 +26,229 @@ interface LowStockItem {
   reorderLevel: number;
 }
 
+const ORDERS_PER_PAGE = 6;
+
 export default function DashboardPage() {
-  const router = useRouter();
+  const { user } = useAuth();
+
   const [userName, setUserName] = useState("Employee");
   const [orders, setOrders] = useState<Order[]>([]);
   const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAllOrders, setShowAllOrders] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const isToday = (dateString: string | null) => {
+    if (!dateString) return false;
+
+    const date = new Date(dateString);
+    const today = new Date();
+
+    return (
+      date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate()
+    );
+  };
+
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return "—";
+
+    return new Date(dateString).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      const [inventoryData, ordersData] = await Promise.all([
+        fetchInventory(),
+        fetchAllOrders(),
+      ]);
+
+      const lowStock = (inventoryData as LowStockItem[]).filter(
+        (item) => item.quantity <= item.reorderLevel,
+      );
+      setLowStockItems(lowStock);
+
+      const mappedOrders: Order[] = (ordersData as EmployeeOrderItem[]).map(
+        (order) => ({
+          id: order.id,
+          customerName:
+            order.customerName ?? `Customer #${order.customerId ?? "—"}`,
+          status: order.status as Order["status"],
+          total: order.price,
+          orderedAt: order.orderedAt ?? null,
+          completedAt: order.completedAt ?? null,
+        }),
+      );
+
+      setOrders(mappedOrders);
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+      setLowStockItems([]);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    //placeholder
-    setUserName("Sarah Johnson");
+    if (user) {
+      setUserName(`${user.firstName} ${user.lastName}`);
+    }
 
-    //placeholder
-    setOrders([
-      {
-        id: "ORD-001",
-        customerName: "Green Garden Co.",
-        status: "pending",
-        total: 245.5,
-        date: "2026-04-08",
-      },
-      {
-        id: "ORD-002",
-        customerName: "Healthy Eats Cafe",
-        status: "in-progress",
-        total: 189.99,
-        date: "2026-04-08",
-      },
-      {
-        id: "ORD-003",
-        customerName: "Organic Market",
-        status: "completed",
-        total: 325.75,
-        date: "2026-04-07",
-      },
-    ]);
+    void loadDashboardData();
 
-    //filters lowstock
-    fetchInventoryData();
-
-    //referesh inventory data
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        fetchInventoryData();
+        void loadDashboardData();
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", loadDashboardData);
 
-    //refetch on focus and every 30 seconds
-    window.addEventListener("focus", fetchInventoryData);
-    const interval = setInterval(fetchInventoryData, 30000);
+    const interval = window.setInterval(() => {
+      void loadDashboardData();
+    }, 30000);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", fetchInventoryData);
-      clearInterval(interval);
+      window.removeEventListener("focus", loadDashboardData);
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [user]);
 
-  const fetchInventoryData = async () => {
-    try {
-      const response = await fetch("/api/inventory");
-      if (!response.ok) {
-        throw new Error("Failed to fetch inventory");
-      }
-      const data = (await response.json()) as LowStockItem[];
-      const lowStock = data.filter(
-        (item) => item.quantity <= item.reorderLevel,
-      );
-      setLowStockItems(lowStock);
-    } catch (error) {
-      console.error("Failed to fetch inventory:", error);
-      setLowStockItems([]);
-    }
-  };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showAllOrders]);
 
-  const pendingOrders = orders.filter((o) => o.status === "pending").length;
-  const completedOrders = orders.filter((o) => o.status === "completed").length;
+  const todaysOrders = useMemo(
+    () => orders.filter((o) => isToday(o.orderedAt)),
+    [orders],
+  );
 
-  const getStatusBadgeColor = (status: string) => {
+  const pendingOrders = todaysOrders.filter(
+    (o) => o.status === "pending",
+  ).length;
+  const completedOrders = todaysOrders.filter(
+    (o) => o.status === "delivered",
+  ).length;
+
+  const displayedOrdersBase = showAllOrders ? orders : todaysOrders;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayedOrdersBase.length / ORDERS_PER_PAGE),
+  );
+
+  const paginatedOrders = displayedOrdersBase.slice(
+    (currentPage - 1) * ORDERS_PER_PAGE,
+    currentPage * ORDERS_PER_PAGE,
+  );
+
+  const getStatusBadgeColor = (status: Order["status"]) => {
     switch (status) {
       case "pending":
         return "bg-yellow-100 text-yellow-700";
-      case "in-progress":
+      case "assigned":
+      case "in_progress":
         return "bg-blue-100 text-blue-700";
-      case "completed":
+      case "delivered":
         return "bg-green-100 text-green-700";
+      case "cancelled":
+        return "bg-red-100 text-red-700";
       default:
         return "bg-gray-100 text-gray-700";
     }
   };
 
+  const formatStatus = (status: Order["status"]) => {
+    if (status === "in_progress") return "in progress";
+    return status;
+  };
+
   return (
-    <div className="flex min-h-screen bg-cream font-dm">
-      <EmployeeSidebar active="dashboard" />
+    <EmployeeRoute>
+      <div className="min-h-screen bg-cream font-dm">
+        <EmployeeSidebar active="dashboard" />
 
-      {/* Main Content */}
-      <div className="flex-1 p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="font-playfair text-4xl text-forest mb-2">
-            Welcome, {userName}!
-          </h1>
-          <p className="text-[#666]">
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
-        </div>
+        <main className="p-8">
+          <div className="mb-8">
+            <h1 className="font-playfair text-4xl text-forest mb-2">
+              Welcome, {userName}!
+            </h1>
+            <p className="text-[#666]">
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
+          </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-sage">
-            <p className="text-[#666] text-sm font-medium mb-2">
-              Pending Orders
-            </p>
-            <p className="font-playfair text-3xl text-forest">
-              {pendingOrders}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-mint">
-            <p className="text-[#666] text-sm font-medium mb-2">
-              Completed Today
-            </p>
-            <p className="font-playfair text-3xl text-forest">
-              {completedOrders}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-warm">
-            <p className="text-[#666] text-sm font-medium mb-2">
-              Low Stock Items
-            </p>
-            <p className="font-playfair text-3xl text-forest">
-              {lowStockItems.length}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-blue-400">
-            <p className="text-[#666] text-sm font-medium mb-2">
-              Total Revenue
-            </p>
-            <p className="font-playfair text-3xl text-forest">$760.24</p>
-          </div>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+            <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-sage">
+              <p className="text-[#666] text-sm font-medium mb-2">
+                Pending Orders
+              </p>
+              <p className="font-playfair text-3xl text-forest">
+                {pendingOrders}
+              </p>
+            </div>
 
-        {/* Main Sections */}
-        <div className="grid grid-cols-3 gap-8">
-          {/* Low Stock Alert */}
-          <div className="col-span-2">
-            <div className="bg-white rounded-xl shadow-md p-6 mb-8">
+            <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-mint">
+              <p className="text-[#666] text-sm font-medium mb-2">
+                Completed Today
+              </p>
+              <p className="font-playfair text-3xl text-forest">
+                {completedOrders}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-warm">
+              <p className="text-[#666] text-sm font-medium mb-2">
+                Low Stock Items
+              </p>
+              <p className="font-playfair text-3xl text-forest">
+                {loading ? "..." : lowStockItems.length}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-blue-400">
+              <p className="text-[#666] text-sm font-medium mb-2">
+                Total Orders Today
+              </p>
+              <p className="font-playfair text-3xl text-forest">
+                {todaysOrders.length}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-8">
+            <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-playfair text-xl text-forest">
                   Low Stock Items
                 </h2>
-                <Link
+                <a
                   href="/inventory?lowStockOnly=true"
                   className="text-sage font-medium text-sm hover:text-forest transition-colors"
                 >
                   View All →
-                </Link>
+                </a>
               </div>
 
-              {lowStockItems.length > 0 ? (
+              {loading ? (
+                <p className="text-[#666] py-4">Loading inventory...</p>
+              ) : lowStockItems.length > 0 ? (
                 <div className="space-y-3">
                   {lowStockItems.map((item) => (
                     <div
@@ -212,124 +277,128 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Today's Orders */}
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-playfair text-xl text-forest">
-                  Today&apos;s Orders
+                  {showAllOrders ? "All Orders" : "Today's Orders"}
                 </h2>
-                <Link
-                  href="/orders"
+                <button
+                  onClick={() => setShowAllOrders((prev) => !prev)}
                   className="text-sage font-medium text-sm hover:text-forest transition-colors"
                 >
-                  View All →
-                </Link>
+                  {showAllOrders ? "Show Today Only" : "View All →"}
+                </button>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[#ddd]">
-                      <th className="text-left py-3 px-4 font-medium text-forest">
-                        Order ID
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-forest">
-                        Customer
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-forest">
-                        Status
-                      </th>
-                      <th className="text-right py-3 px-4 font-medium text-forest">
-                        Total
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.slice(0, 5).map((order) => (
-                      <tr
-                        key={order.id}
-                        className="border-b border-[#ddd] hover:bg-cream/50"
-                      >
-                        <td className="py-3 px-4 font-medium text-[#1a1a14]">
-                          {order.id}
-                        </td>
-                        <td className="py-3 px-4 text-[#666]">
-                          {order.customerName}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadgeColor(order.status)}`}
+              {loading ? (
+                <p className="text-[#666] py-4">Loading orders...</p>
+              ) : displayedOrdersBase.length === 0 ? (
+                <p className="text-[#666] py-4">
+                  {showAllOrders
+                    ? "No orders found."
+                    : "No orders placed today."}
+                </p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[#ddd]">
+                          <th className="text-left py-3 px-4 font-medium text-forest">
+                            Order ID
+                          </th>
+                          <th className="text-left py-3 px-4 font-medium text-forest">
+                            Placed By
+                          </th>
+                          <th className="text-left py-3 px-4 font-medium text-forest">
+                            Status
+                          </th>
+                          <th className="text-left py-3 px-4 font-medium text-forest">
+                            Originally Placed
+                          </th>
+                          <th className="text-left py-3 px-4 font-medium text-forest">
+                            Completed At
+                          </th>
+                          <th className="text-right py-3 px-4 font-medium text-forest">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedOrders.map((order) => (
+                          <tr
+                            key={order.id}
+                            className="border-b border-[#ddd] hover:bg-cream/50"
                           >
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-medium text-[#1a1a14]">
-                          ${order.total.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            <td className="py-3 px-4 font-medium text-[#1a1a14]">
+                              #{order.id}
+                            </td>
+                            <td className="py-3 px-4 text-[#666]">
+                              {order.customerName}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusBadgeColor(
+                                  order.status,
+                                )}`}
+                              >
+                                {formatStatus(order.status)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-[#666]">
+                              {formatDateTime(order.orderedAt)}
+                            </td>
+                            <td className="py-3 px-4 text-[#666]">
+                              {order.status === "delivered"
+                                ? formatDateTime(order.completedAt)
+                                : "—"}
+                            </td>
+                            <td className="py-3 px-4 text-right font-medium text-[#1a1a14]">
+                              ${order.total.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="mt-6 flex items-center justify-between">
+                      <p className="text-sm text-[#666]">
+                        Page {currentPage} of {totalPages}
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(prev - 1, 1))
+                          }
+                          disabled={currentPage === 1}
+                          className="rounded-lg border border-[#ddd] bg-white px-4 py-2 text-sm font-medium text-forest transition-colors hover:bg-cream/50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Previous
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(prev + 1, totalPages),
+                            )
+                          }
+                          disabled={currentPage === totalPages}
+                          className="rounded-lg border border-[#ddd] bg-white px-4 py-2 text-sm font-medium text-forest transition-colors hover:bg-cream/50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
-
-          {/* Quick Actions */}
-          <div>
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="font-playfair text-xl text-forest mb-4">
-                Quick Actions
-              </h2>
-
-              <div className="space-y-3">
-                <Link
-                  href="/inventory"
-                  className="block p-4 rounded-lg bg-sage/10 border border-sage/30 hover:bg-sage/20 transition-colors text-center"
-                >
-                  <p className="font-medium text-forest text-sm font-bold">
-                    Manage Inventory
-                  </p>
-                </Link>
-
-                <Link
-                  href="/orders/new"
-                  className="block p-4 rounded-lg bg-mint/10 border border-mint/30 hover:bg-mint/20 transition-colors text-center"
-                >
-                  <p className="font-medium text-forest text-sm font-bold">
-                    Create Order
-                  </p>
-                </Link>
-
-                <Link
-                  href="/reports"
-                  className="block p-4 rounded-lg bg-blue-100/50 border border-blue-200/50 hover:bg-blue-100 transition-colors text-center"
-                >
-                  <p className="font-medium text-forest text-sm font-bold">
-                    View Reports
-                  </p>
-                </Link>
-
-                <Link
-                  href="/routing"
-                  className="block p-4 rounded-lg bg-warm/10 border border-warm/30 hover:bg-warm/20 transition-colors text-center"
-                >
-                  <p className="font-medium text-forest text-sm font-bold">
-                    Schedule Delivery
-                  </p>
-                </Link>
-              </div>
-            </div>
-
-            {/* Info Card */}
-            <div className="bg-sage/10 rounded-xl p-6 mt-6 border border-sage/20">
-              <p className="text-sm text-forest">
-                <strong>Need help?</strong> Check our documentation or contact
-                support.
-              </p>
-            </div>
-          </div>
-        </div>
+        </main>
       </div>
-    </div>
+    </EmployeeRoute>
   );
 }
