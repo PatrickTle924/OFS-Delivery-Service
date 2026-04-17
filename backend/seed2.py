@@ -6,11 +6,11 @@ from database import db
 from models import User, CustomerProfile, Product, Order, OrderItem, Payment
 
 
-USER_EMAIL = "tester@gmail.com"
-NUM_ORDERS = 4
+USER_EMAILS = ["testy@gmail.com", "tester@gmail.com"]
+ORDERS_PER_USER = 2
 
 
-def seed_orders_for_user(user_email: str, num_orders: int = 3) -> None:
+def seed_orders_for_user(user_email: str, num_orders: int = 2) -> list[int]:
     user = User.query.filter_by(email=user_email).first()
     if not user:
         raise ValueError(f"User with email '{user_email}' not found.")
@@ -54,8 +54,8 @@ def seed_orders_for_user(user_email: str, num_orders: int = 3) -> None:
         total_cost = round(subtotal + delivery_fee, 2)
 
         ordered_at = datetime.now(timezone.utc) - timedelta(
-            days=(num_orders - i),
-            hours=random.randint(1, 10)
+            hours=random.randint(1, 24),
+            minutes=random.randint(0, 59),
         )
 
         order = Order(
@@ -101,10 +101,18 @@ def seed_orders_for_user(user_email: str, num_orders: int = 3) -> None:
 
         created_order_ids.append(order.order_id)
 
-    db.session.commit()
-    print(f"Created {len(created_order_ids)} pending orders for {user_email}: {created_order_ids}")
+    return created_order_ids
 
 
 if __name__ == "__main__":
     with app.app_context():
-        seed_orders_for_user(USER_EMAIL, NUM_ORDERS)
+        all_created = {}
+
+        for email in USER_EMAILS:
+            created_ids = seed_orders_for_user(email, ORDERS_PER_USER)
+            all_created[email] = created_ids
+
+        db.session.commit()
+
+        for email, ids in all_created.items():
+            print(f"Created {len(ids)} pending orders for {email}: {ids}")

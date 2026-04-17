@@ -761,7 +761,7 @@ def approve_route():
             {
                 "error": "Some orders are already assigned to a trip",
                 "orderIds": already_assigned,
-            }
+            } 
         ), 400
 
     new_trip = Trip(
@@ -796,6 +796,14 @@ def get_active_delivery():
     )
 
     if not active_trip:
+        return jsonify({"activeDelivery": None}), 200
+
+    if active_trip.status == "in_progress":
+        changed = sync_trip_progress(active_trip)
+        if changed:
+            db.session.commit()
+
+    if active_trip.status == "completed":
         return jsonify({"activeDelivery": None}), 200
 
     return jsonify(build_active_delivery_from_trip(active_trip)), 200
@@ -849,52 +857,36 @@ def is_near(lng1, lat1, lng2, lat2, threshold_meters=15):
     distance = R * c
     return distance <= threshold_meters
 
-@app.route("/trip-progress/<int:trip_id>", methods=["POST"])
-@role_required("employee")
-def advance_trip_progress(trip_id):
-    trip = Trip.query.get(trip_id)
-    if not trip:
-        return jsonify({"error": "Trip not found"}), 404
-
-    if trip.status != "in_progress":
-        return jsonify({"error": "Trip is not in progress"}), 400
+def sync_trip_progress(trip):
+    if trip.status != "in_progress" or not trip.started_at or not trip.route_geometry:
+        return False
 
     try:
-        route_geometry = json.loads(trip.route_geometry) if trip.route_geometry else None
+        route_geometry = json.loads(trip.route_geometry)
     except Exception:
-        return jsonify({"error": "Invalid route geometry"}), 400
+        return False
 
-    if not route_geometry or "coordinates" not in route_geometry:
-        return jsonify({"error": "No route coordinates"}), 400
-
-    coords = route_geometry["coordinates"]
+    coords = route_geometry.get("coordinates", [])
     if not coords:
-        return jsonify({"error": "Empty route coordinates"}), 400
+        return False
 
-    next_index = (trip.current_index or 0) + 1
+    started_at = trip.started_at
+    if started_at.tzinfo is not None:
+        now = datetime.now(timezone.utc)
+    else:
+        now = datetime.utcnow()
 
-    if next_index >= len(coords):
-        trip.current_index = len(coords) - 1
-        trip.current_lng = coords[-1][0]
-        trip.current_lat = coords[-1][1]
-        trip.status = "completed"
-        trip.completed_at = datetime.utcnow()
+    elapsed_seconds = max(0, int((now - started_at).total_seconds()))
 
-        orders = Order.query.filter_by(trip_id=trip.trip_id).all()
-        for order in orders:
-            order.status = "delivered"
+    # one route point per second
+    new_index = min(elapsed_seconds, len(coords) - 1)
+    changed = False
 
-        db.session.commit()
-
-        return jsonify({
-            "message": "Trip completed",
-            "completed": True,
-            **build_active_delivery_from_trip(trip)
-        }), 200
-
-    trip.current_index = next_index
-    trip.current_lng = coords[next_index][0]
-    trip.current_lat = coords[next_index][1]
+    if trip.current_index != new_index:
+        trip.current_index = new_index
+        trip.current_lng = coords[new_index][0]
+        trip.current_lat = coords[new_index][1]
+        changed = True
 
     assigned_orders = Order.query.filter_by(trip_id=trip.trip_id).all()
     for order in assigned_orders:
@@ -906,18 +898,23 @@ def advance_trip_progress(trip_id):
                 trip.current_lng,
                 trip.current_lat,
                 order.delivery_lng,
-                order.delivery_lat
+                order.delivery_lat,
             )
         ):
             order.status = "delivered"
+            changed = True
 
-    db.session.commit()
+    if new_index >= len(coords) - 1 and trip.status != "completed":
+        trip.status = "completed"
+        trip.completed_at = now
 
-    return jsonify({
-        "completed": False,
-        **build_active_delivery_from_trip(trip)
-    }), 200
+        for order in assigned_orders:
+            if order.status != "delivered":
+                order.status = "delivered"
 
+        changed = True
+
+    return changed
 
 @app.route('/profile', methods=['GET'])
 @jwt_required()
@@ -1139,8 +1136,63 @@ def get_order_history():
     if not user.customer_profile:
         return jsonify({"error": "Only customers have order history"}), 403
 
+    orders = (
+        Order.query
+        .filter(Order.customer_id == user.customer_profile.id)
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
+
+    return jsonify([
+        {
+            "order_id": o.order_id,
+            "ordered_at": o.ordered_at.isoformat() if o.ordered_at else None,
+            "total_cost": o.total_cost,
+            "status": o.status,
+            "item_count": len(o.order_items),
+            "delivery_address": o.delivery_address,
+            "total_weight": o.total_weight,
+        }
+        for o in orders
+    ]), 200
+
+
+@app.route('/orders/active', methods=['GET'])
+@role_required("customer")
+def get_active_orders():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if not user.customer_profile:
+        return jsonify({"error": "Only customers can view active orders"}), 403
+
     active_statuses = ["pending", "assigned", "in_progress"]
 
+    orders = (
+        Order.query
+        .filter(
+            Order.customer_id == user.customer_profile.id,
+            Order.status.in_(active_statuses)
+        )
+        .order_by(Order.ordered_at.desc())
+        .all()
+    )
+
+    touched_trip_ids = set()
+
+    for o in orders:
+        trip = o.trip
+        if trip and trip.status == "in_progress" and trip.trip_id not in touched_trip_ids:
+            sync_trip_progress(trip)
+            touched_trip_ids.add(trip.trip_id)
+
+    if touched_trip_ids:
+        db.session.commit()
+
+    # re-query in case some orders became delivered and dropped out of active list
     orders = (
         Order.query
         .filter(
@@ -1227,6 +1279,7 @@ def get_order_history():
         })
 
     return jsonify(results), 200
+
 
 
 @app.route('/reports', methods=['POST'])
@@ -1349,6 +1402,30 @@ def get_all_orders():
         })
 
     return jsonify(results), 200
+
+@app.route("/cancel-route/<int:trip_id>", methods=["POST"])
+@role_required("employee")
+def cancel_route(trip_id):
+    trip = Trip.query.get(trip_id)
+    if not trip:
+        return jsonify({"error": "Trip not found"}), 404
+
+    if trip.status == "completed":
+        return jsonify({"error": "Completed trips cannot be cancelled"}), 400
+
+    assigned_orders = Order.query.filter_by(trip_id=trip.trip_id).all()
+
+    for order in assigned_orders:
+        order.trip_id = None
+
+        if order.status != "delivered":
+            order.status = "pending"
+
+    trip.status = "cancelled"
+
+    db.session.commit()
+
+    return jsonify({"message": "Route cancelled successfully"}), 200
 
 
 # for local development without Docker

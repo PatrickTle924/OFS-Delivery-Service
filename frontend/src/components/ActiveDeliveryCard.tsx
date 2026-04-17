@@ -11,17 +11,29 @@ import { IoClose } from "react-icons/io5";
 interface ActiveDeliveryCardProps {
   delivery: ActiveDelivery;
   onTrack: (tripId: string) => void;
+  onCancel: (tripId: string) => void;
 }
 
 export function ActiveDeliveryCard({
   delivery,
   onTrack,
+  onCancel,
 }: ActiveDeliveryCardProps) {
   const [showTrackingModal, setShowTrackingModal] = useState(false);
 
   const handleOpenTracking = () => {
     setShowTrackingModal(true);
     onTrack(delivery.tripId);
+  };
+
+  const handleCancelRoute = () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to cancel this route?",
+    );
+    if (!confirmed) return;
+
+    onCancel(delivery.tripId);
+    setShowTrackingModal(false);
   };
 
   useEffect(() => {
@@ -102,16 +114,25 @@ export function ActiveDeliveryCard({
               </div>
             </div>
 
-            <button
-              onClick={handleOpenTracking}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--color-clay) 0%, var(--color-sage) 100%)",
-              }}
-            >
-              View Robot Path
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleOpenTracking}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--color-clay) 0%, var(--color-sage) 100%)",
+                }}
+              >
+                View Robot Path
+              </button>
+
+              <button
+                onClick={handleCancelRoute}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors duration-200 bg-red-600 hover:bg-red-700"
+              >
+                Cancel Route
+              </button>
+            </div>
           </CardBody>
         </div>
       </Card>
@@ -155,6 +176,15 @@ export function ActiveDeliveryCard({
                 className="w-full h-[70vh]"
                 focusMode
               />
+            </div>
+
+            <div className="p-5 pt-0">
+              <button
+                onClick={handleCancelRoute}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-colors duration-200 bg-red-600 hover:bg-red-700"
+              >
+                Cancel Route
+              </button>
             </div>
           </div>
         </div>

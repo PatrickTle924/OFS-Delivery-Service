@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import CustomerRoute from "@/components/CustomerRoute";
-import { fetchOrderHistory, OrderHistoryItem } from "@/lib/api-service";
-import { ActiveDelivery } from "@/types/routing";
 import Navbar from "@/components/Navbar";
 import { MiniMap } from "@/components/MiniMap";
+import { fetchActiveOrders, ActiveOrderItem } from "@/lib/api-service";
+import { ActiveDelivery } from "@/types/routing";
+
 type OrderStatus =
   | "pending"
   | "assigned"
@@ -29,11 +30,7 @@ interface UIOrder {
   address: string;
   eta: string;
   steps: TimelineStepData[];
-
-  rawStatus: OrderStatus;
-  tripId?: string | null;
-  tripStatus?: string | null;
-  mapData?: ActiveDelivery | null;
+  mapData: ActiveDelivery | null;
 }
 
 function normalizeStatus(status: string): OrderStatus {
@@ -167,7 +164,8 @@ function buildSteps(
     },
   ];
 }
-function toUIOrder(order: OrderHistoryItem): UIOrder {
+
+function toUIOrder(order: ActiveOrderItem): UIOrder {
   const normalizedStatus = normalizeStatus(order.status);
 
   const hasApprovedRoute =
@@ -206,9 +204,6 @@ function toUIOrder(order: OrderHistoryItem): UIOrder {
           ? "Cancelled"
           : "Pending update",
     steps: buildSteps(normalizedStatus, order.ordered_at),
-    rawStatus: normalizedStatus,
-    tripId: order.tripId ?? null,
-    tripStatus: order.tripStatus ?? null,
     mapData,
   };
 }
@@ -328,7 +323,7 @@ function OrderCard({ order }: { order: UIOrder }) {
   );
 }
 
-export default function OrdersPage() {
+export default function ActiveOrdersPage() {
   const [orders, setOrders] = useState<UIOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -336,7 +331,7 @@ export default function OrdersPage() {
   useEffect(() => {
     const loadOrders = async () => {
       try {
-        const data = await fetchOrderHistory();
+        const data = await fetchActiveOrders();
         const mapped = data.map(toUIOrder);
         setOrders(mapped);
         setError(null);
@@ -347,19 +342,22 @@ export default function OrdersPage() {
       }
     };
 
-    loadOrders();
+    void loadOrders();
 
-    const intervalId = window.setInterval(() => {
+    const intervalId: number = window.setInterval(() => {
       void loadOrders();
     }, 3000);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   return (
     <CustomerRoute>
       <div className="min-h-screen bg-cream font-dm relative">
         <Navbar alwaysFrosted />
+
         <div className="pointer-events-none fixed top-[-10%] left-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(168,213,181,0.18)_0%,transparent_65%)] -z-10" />
         <div className="pointer-events-none fixed bottom-[-10%] right-[-10%] h-150 w-150 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(196,133,90,0.10)_0%,transparent_65%)] -z-10" />
 
@@ -387,7 +385,7 @@ export default function OrdersPage() {
             </div>
           ) : orders.length === 0 ? (
             <div className="rounded-3xl border border-warm bg-white/70 p-6 shadow-sm backdrop-blur-sm text-forest/60">
-              No orders found.
+              No active orders found.
             </div>
           ) : (
             <div className="space-y-8">

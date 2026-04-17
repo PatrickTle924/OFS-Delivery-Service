@@ -30,7 +30,7 @@ export default function EmployeeSidebar({ active }: EmployeeSidebarProps) {
         {" "}
         <div className="flex items-center gap-8">
           <Link
-            href="/empdashboard"
+            href="/"
             className="font-playfair text-2xl tracking-tight text-forest"
           >
             OFS<span className="text-clay italic">.</span>

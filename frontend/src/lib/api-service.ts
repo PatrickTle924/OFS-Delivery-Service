@@ -531,3 +531,55 @@ export async function fetchAllOrders(): Promise<EmployeeOrderItem[]> {
 
   return data;
 }
+
+export async function cancelRoute(tripId: number) {
+  const res = await fetch(`${API_BASE_URL}/cancel-route/${tripId}`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Failed to cancel route");
+  }
+
+  return data;
+}
+
+export interface ActiveOrderItem {
+  order_id: number;
+  ordered_at: string | null;
+  total_cost: number;
+  status: string;
+  item_count: number;
+  delivery_address: string;
+  total_weight: number;
+  tripId?: string | null;
+  tripStatus?: string | null;
+  eta?: number | null;
+  routeGeometry?: { type: "LineString"; coordinates: number[][] } | null;
+  traveledPath?: { type: "LineString"; coordinates: number[][] } | null;
+  robotPosition?: { lng: number; lat: number } | null;
+  mapPoints?: {
+    lng: number;
+    lat: number;
+    label: string;
+    completed: boolean;
+  }[];
+}
+
+export const fetchActiveOrders = async (): Promise<ActiveOrderItem[]> => {
+  const response = await fetch(`${API_BASE_URL}/orders/active`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to fetch active orders");
+  }
+
+  return data;
+};

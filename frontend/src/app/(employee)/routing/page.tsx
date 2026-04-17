@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import EmployeeSidebar from "@/components/EmployeeSidebar";
 import { DeliveryRoutes } from "@/components/DeliveryRoutes";
 import { SuggestedRoutes } from "@/components/SuggestedRoutes";
@@ -16,8 +16,8 @@ import {
   fetchActiveDelivery,
   optimizeRoutes,
   approveRoute,
-  startSimulation,
   startTrip,
+  cancelRoute,
 } from "@/lib/api-service";
 import Link from "next/link";
 import EmployeeRoute from "@/components/EmployeeRoute";
@@ -38,48 +38,70 @@ export default function DeliveryDashboardPage() {
   const [approvedRoutePreview, setApprovedRoutePreview] =
     useState<RoutePreview | null>(null);
 
-  const simulationRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
+  const loadDashboardData = async (showLoading = false) => {
+    try {
+      if (showLoading) {
         setLoadingOrders(true);
-        setError(null);
+      }
 
-        const [ordersData, activeData] = await Promise.all([
-          fetchOrders(),
-          fetchActiveDelivery(),
-        ]);
+      const [ordersData, activeData] = await Promise.all([
+        fetchOrders(),
+        fetchActiveDelivery(),
+      ]);
 
-        setOrders(ordersData);
-        setActiveDelivery(activeData.activeDelivery ?? null);
-        setRoutes([]);
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load dashboard";
-        setError(message);
-      } finally {
+      setOrders(ordersData);
+      setActiveDelivery(activeData.activeDelivery ?? null);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load dashboard";
+      setError(message);
+    } finally {
+      if (showLoading) {
         setLoadingOrders(false);
       }
-    };
+    }
+  };
 
-    loadDashboardData();
+  useEffect(() => {
+    setError(null);
+    void loadDashboardData(true);
   }, []);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void loadDashboardData(false);
+    }, 3000);
+
     return () => {
-      if (simulationRef.current) {
-        clearInterval(simulationRef.current);
-      }
+      window.clearInterval(intervalId);
     };
   }, []);
+
+  const handleCancelRoute = async (tripId: string) => {
+    try {
+      setError(null);
+      setCompletionMessage(null);
+
+      const numericId = Number(tripId.replace("Trip #", ""));
+
+      await cancelRoute(numericId);
+
+      await loadDashboardData(false);
+      setRoutes([]);
+      setApprovedRoutePreview(null);
+      setCompletionMessage(`Trip ${tripId} was cancelled.`);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to cancel route";
+      setError(message);
+    }
+  };
 
   const handleGenerateRoutes = async (selectedIds: number[]) => {
     try {
       setLoadingRoutes(true);
       setError(null);
       setCompletionMessage(null);
-
       setRoutes([]);
       setApprovedRoutePreview(null);
 
@@ -138,52 +160,11 @@ export default function DeliveryDashboardPage() {
 
       const numericId = Number(tripId.replace("Trip #", ""));
 
-      if (simulationRef.current) {
-        clearInterval(simulationRef.current);
-        simulationRef.current = null;
-      }
-
       if (activeDelivery?.status === "assigned") {
         await startTrip(numericId);
-        const refreshed = await fetchActiveDelivery();
-        setActiveDelivery(refreshed.activeDelivery ?? null);
       }
 
-      simulationRef.current = startSimulation(
-        numericId,
-        (updatedDelivery) => {
-          setActiveDelivery(updatedDelivery ?? null);
-        },
-        async () => {
-          const [refreshedOrders, refreshedDelivery] = await Promise.all([
-            fetchOrders(),
-            fetchActiveDelivery(),
-          ]);
-
-          setOrders(refreshedOrders);
-
-          if (refreshedDelivery.activeDelivery) {
-            setActiveDelivery(refreshedDelivery.activeDelivery);
-          } else {
-            setActiveDelivery((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    status: "completed",
-                  }
-                : null,
-            );
-          }
-
-          setCompletionMessage(`Trip ${tripId} completed successfully.`);
-
-          if (simulationRef.current) {
-            clearInterval(simulationRef.current);
-            simulationRef.current = null;
-          }
-        },
-        1000,
-      );
+      await loadDashboardData(false);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to track robot";
@@ -203,7 +184,6 @@ export default function DeliveryDashboardPage() {
         <EmployeeSidebar active="routing" />
 
         <main className="px-4 py-6 md:px-6">
-          {" "}
           <div className="flex flex-col lg:flex-row gap-5">
             <div className="w-full lg:w-80 flex-shrink-0 lg:h-[calc(100vh-5.5rem)] lg:sticky lg:top-6">
               {loadingOrders ? (
@@ -241,6 +221,7 @@ export default function DeliveryDashboardPage() {
                 <ActiveDeliveryCard
                   delivery={activeDelivery}
                   onTrack={handleTrackRobot}
+                  onCancel={handleCancelRoute}
                 />
               )}
 
@@ -251,14 +232,16 @@ export default function DeliveryDashboardPage() {
                   onApprove={handleApprove}
                 />
               )}
-
-              <Link
-                href="/empdashboard"
-                className="absolute bottom-6 right-6 text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
-              >
-                ← Back to Dashboard
-              </Link>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <Link
+              href="/empdashboard"
+              className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
+            >
+              ← Back to Dashboard
+            </Link>
           </div>
         </main>
       </div>
