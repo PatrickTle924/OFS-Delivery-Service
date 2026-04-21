@@ -390,6 +390,36 @@ def get_orders():
         for o in orders
     ])
 
+@app.route("/geocode")
+def geocode():
+    address = request.args.get("address")
+
+    if not address:
+        return jsonify({"error": "Address required"}), 400
+
+    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{address}.json"
+
+    params = {
+        "access_token": os.getenv("MAPBOX_ACCESS_TOKEN"),
+        "limit": 1
+    }
+
+    res = requests.get(url, params=params)
+    data = res.json()
+
+    if not data["features"]:
+        return jsonify({"error": "Address not found"}), 404
+
+    feature = data["features"][0]
+    lng, lat = feature["center"]
+
+    return jsonify({
+        "lat": lat,
+        "lng": lng,
+        "place_name": feature["place_name"]
+    })
+
+
 @app.route('/orders', methods=['POST'])
 @jwt_required()
 def create_order():
@@ -420,7 +450,9 @@ def create_order():
             subtotal=data.get("subtotal", 0),
             total_weight=data.get("total_weight", 0),
             delivery_fee=data.get("deliveryFee", 0),
-            total_cost=data.get("total", 0)
+            total_cost=data.get("total", 0),
+            delivery_lat=data.get("delivery_lat", None),
+            delivery_lng=data.get("delivery_lng", None),
         )
 
         db.session.add(new_order)

@@ -52,12 +52,14 @@ export default function CheckoutPage() {
 
         const fullName = `${profile.firstName} ${profile.lastName}`.trim();
         const address = profile.address || "";
+        const city = "San Jose"
 
         setDeliveryInfo((prev) => ({
           ...prev,
           fullName,
           phone: profile.phone || "",
           addressLine1: address,
+          city: city,
         }));
       } catch (error) {
         console.error("Failed to load profile for checkout:", error);
@@ -115,6 +117,24 @@ export default function CheckoutPage() {
         0,
       );
 
+      const address = `${deliveryInfo.addressLine1}, ${deliveryInfo.city}, CA ${deliveryInfo.zipCode}`;
+      const res = await fetch(
+      `http://localhost:5000/geocode?address=${encodeURIComponent(address)}`
+    );
+
+    const data = await res.json();
+    const lat = data.lat;
+    const lng = data.lng;
+
+    if (!res.ok) {
+  throw new Error(data.error || "Geocoding failed");
+}
+
+if (typeof data.lat !== "number" || typeof data.lng !== "number") {
+  throw new Error("Invalid geocoding response");
+}
+
+  console.log(data);
       const payload = {
         deliveryInfo,
         items: cart.map((item) => ({
@@ -131,6 +151,8 @@ export default function CheckoutPage() {
         tax,
         total,
         total_weight,
+        delivery_lat: lat,
+        delivery_lng: lng,
       };
 
       const result = await placeOrder(payload);
