@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { DELIVERY_FEE, DELIVERY_THRESHOLD } from "@/types/shop";
 
 interface Product {
   id: number;
@@ -28,8 +29,6 @@ interface CreateOrderModalProps {
   onClose: () => void;
   onOrderCreated: () => void;
 }
-
-const DELIVERY_FEE = 4.99;
 
 export default function CreateOrderModal({
   open,
@@ -141,11 +140,12 @@ export default function CreateOrderModal({
     (sum, e) => sum + e.product.price * e.quantity,
     0
   );
-  const total = subtotal + DELIVERY_FEE;
   const totalWeight = cartEntries.reduce(
     (sum, e) => sum + e.product.weight * e.quantity,
     0
   );
+  const deliveryFee = totalWeight < DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE;
+  const total = subtotal + deliveryFee;
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
@@ -437,12 +437,15 @@ export default function CreateOrderModal({
                   </div>
                   <div className="flex justify-between text-sm text-forest/60">
                     <span>Delivery fee</span>
-                    <span>${DELIVERY_FEE.toFixed(2)}</span>
+                    <span>${deliveryFee.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-forest/60">
                     <span>Total weight</span>
                     <span>{totalWeight.toFixed(2)} lbs</span>
                   </div>
+                  <p className="text-xs text-forest/50">
+                    Orders under {DELIVERY_THRESHOLD} lbs ship free. Orders at {DELIVERY_THRESHOLD} lbs or more add ${DELIVERY_FEE.toFixed(2)}.
+                  </p>
                   <div className="flex justify-between font-medium text-forest mt-1">
                     <span>Total</span>
                     <span>${total.toFixed(2)}</span>
