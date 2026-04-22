@@ -429,6 +429,9 @@ def geocode():
 @app.route('/orders', methods=['POST'])
 @jwt_required()
 def create_order():
+    DELIVERY_THRESHOLD = 20
+    DELIVERY_FEE = 10
+
     data = request.get_json()
 
     delivery_info = data.get("deliveryInfo", {})
@@ -447,22 +450,9 @@ def create_order():
     customer_id = customer.id
 
     try:
-        #TODO: update the null inputs later with actual data from frontend
-        new_order = Order(
-            customer_id=customer_id,
-            delivery_address=delivery_info.get("addressLine1", ""),
-            delivery_city=delivery_info.get("city", ""),
-            delivery_zip=delivery_info.get("zipCode", ""),
-            subtotal=data.get("subtotal", 0),
-            total_weight=data.get("total_weight", 0),
-            delivery_fee=data.get("deliveryFee", 0),
-            total_cost=data.get("total", 0),
-            delivery_lat=data.get("delivery_lat", None),
-            delivery_lng=data.get("delivery_lng", None),
-        )
-
-        db.session.add(new_order)
-        db.session.flush()
+        subtotal = 0
+        total_weight = 0
+        order_items = []
 
         for i in items:
             product = Product.query.get(i["product"]["id"])
@@ -472,16 +462,44 @@ def create_order():
             if product.stock < i["quantity"]:
                 db.session.rollback()
                 return jsonify({"error": f"Not enough stock for product {product.name}"}), 400      
+
+            quantity = i["quantity"]
+            subtotal += product.cost * quantity
+            total_weight += product.weight * quantity
             product.stock -= i["quantity"]
 
-            order_item = OrderItem(
-                    order_id=new_order.order_id,
+            order_items.append(
+                OrderItem(
                     product_id=i["product"]["id"],
-                    quantity=i["quantity"],
+                    quantity=quantity,
                     unit_price=product.cost,
                     unit_weight=product.weight
-                )                   
-            
+                )
+            )
+
+        delivery_fee = 0 if total_weight < DELIVERY_THRESHOLD else DELIVERY_FEE
+        tax = float(data.get("tax", 0) or 0)
+        total_cost = subtotal + delivery_fee + tax
+
+        # TODO: update the null inputs later with actual data from frontend
+        new_order = Order(
+            customer_id=customer_id,
+            delivery_address=delivery_info.get("addressLine1", ""),
+            delivery_city=delivery_info.get("city", ""),
+            delivery_zip=delivery_info.get("zipCode", ""),
+            subtotal=subtotal,
+            total_weight=total_weight,
+            delivery_fee=delivery_fee,
+            total_cost=total_cost,
+            delivery_lat=data.get("delivery_lat", None),
+            delivery_lng=data.get("delivery_lng", None),
+        )
+
+        db.session.add(new_order)
+        db.session.flush()
+
+        for order_item in order_items:
+            order_item.order_id = new_order.order_id
             db.session.add(order_item)
 
         db.session.commit()
@@ -1653,5 +1671,4 @@ def cancel_route(trip_id):
 # for local development without Docker
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
 

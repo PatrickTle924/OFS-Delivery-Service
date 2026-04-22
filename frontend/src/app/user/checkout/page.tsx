@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import CustomerRoute from "@/components/CustomerRoute";
 import { useCart } from "@/context/CartContext";
 import { fetchUserProfile, placeOrder } from "@/lib/api-service";
+import { DELIVERY_FEE, DELIVERY_THRESHOLD } from "@/types/shop";
 
 type DeliveryInfo = {
   fullName: string;
@@ -72,7 +73,18 @@ export default function CheckoutPage() {
   }, []);
 
   const subtotal = totalPrice;
-  const deliveryFee = useMemo(() => 4.99, []);
+  const totalWeight = useMemo(
+    () =>
+      cart.reduce(
+        (acc, item) => acc + (item.product.weight || 0) * item.quantity,
+        0,
+      ),
+    [cart],
+  );
+  const deliveryFee = useMemo(
+    () => (totalWeight < DELIVERY_THRESHOLD ? 0 : DELIVERY_FEE),
+    [totalWeight],
+  );
   const tax = useMemo(() => subtotal * 0.08, [subtotal]);
   const total = useMemo(
     () => subtotal + deliveryFee + tax,
@@ -112,11 +124,6 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
 
-      const total_weight = cart.reduce(
-        (acc, item) => acc + (item.product.weight || 0) * item.quantity,
-        0,
-      );
-
       const address = `${deliveryInfo.addressLine1}, ${deliveryInfo.city}, CA ${deliveryInfo.zipCode}`;
       const res = await fetch(
       `http://localhost:5000/geocode?address=${encodeURIComponent(address)}`
@@ -150,7 +157,7 @@ if (typeof data.lat !== "number" || typeof data.lng !== "number") {
         deliveryFee,
         tax,
         total,
-        total_weight,
+        total_weight: totalWeight,
         delivery_lat: lat,
         delivery_lng: lng,
       };
@@ -291,6 +298,10 @@ if (typeof data.lat !== "number" || typeof data.lng !== "number") {
                   <span>{totalItems}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span>Total Weight</span>
+                  <span>{totalWeight.toFixed(2)} lbs</span>
+                </div>
+                <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
@@ -298,6 +309,10 @@ if (typeof data.lat !== "number" || typeof data.lng !== "number") {
                   <span>Delivery Fee</span>
                   <span>${deliveryFee.toFixed(2)}</span>
                 </div>
+                <p className="text-xs text-zinc-500">
+                  Orders under {DELIVERY_THRESHOLD} lbs ship free. Orders at{" "}
+                  {DELIVERY_THRESHOLD} lbs or more have a ${DELIVERY_FEE.toFixed(2)} delivery fee.
+                </p>
                 <div className="flex justify-between">
                   <span>Tax</span>
                   <span>${tax.toFixed(2)}</span>
