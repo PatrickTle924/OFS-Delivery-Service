@@ -26,7 +26,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
     'DATABASE_URL',
     'postgresql://user:password@db:5432/delivery_db'
 )
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret-change-me")
+app.config["JWT_SECRET_KEY"] = os.getenv(
+    "JWT_SECRET_KEY",
+    "dev-secret-change-me-at-least-32-bytes-long"
+)
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 60 * 60 * 24  # 24 hours
 
 db.init_app(app)
@@ -403,20 +406,38 @@ def geocode():
     if not address:
         return jsonify({"error": "Address required"}), 400
 
+    access_token = os.getenv("MAPBOX_ACCESS_TOKEN")
+    if not access_token:
+        return jsonify({"error": "MAPBOX_ACCESS_TOKEN is not configured"}), 500
+
     url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{address}.json"
 
     params = {
-        "access_token": os.getenv("MAPBOX_ACCESS_TOKEN"),
+        "access_token": access_token,
         "limit": 1
     }
 
-    res = requests.get(url, params=params)
-    data = res.json()
+    try:
+        res = requests.get(url, params=params, timeout=15)
+        data = res.json()
+    except requests.RequestException:
+        return jsonify({"error": "Failed to contact geocoding service"}), 502
+    except ValueError:
+        return jsonify({"error": "Invalid geocoding response"}), 502
 
-    if not data["features"]:
+    if res.status_code != 200:
+        return jsonify(
+            {
+                "error": "Geocoding request failed",
+                "details": data.get("message") if isinstance(data, dict) else None,
+            }
+        ), 502
+
+    features = data.get("features") if isinstance(data, dict) else None
+    if not features:
         return jsonify({"error": "Address not found"}), 404
 
-    feature = data["features"][0]
+    feature = features[0]
     lng, lat = feature["center"]
 
     return jsonify({
