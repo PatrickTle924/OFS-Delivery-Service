@@ -59,11 +59,11 @@ const getToken = (): string | null => {
   return localStorage.getItem("token");
 };
 
-const getAuthHeaders = (): HeadersInit => {
+const getAuthHeaders = (isFormData = false): HeadersInit => {
   const token = getToken();
 
   return {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };
@@ -326,6 +326,8 @@ export interface InventoryItem {
   weight: string;
   price: number;
   reorderLevel: number;
+  image_url: string;
+  image?: File,
   lastRestocked: string;
 }
 
@@ -344,18 +346,11 @@ export async function fetchInventory(): Promise<InventoryItem[]> {
   return data;
 }
 
-export async function createProduct(productData: {
-  name: string;
-  description: string;
-  category: string;
-  quantity: number;
-  weight: number;
-  price: number;
-}) {
+export async function createProduct(productData: FormData) {
   const res = await fetch(`${API_BASE_URL}/products`, {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(productData),
+    headers: getAuthHeaders(true),
+    body: productData,
   });
 
   const data = await res.json();
@@ -369,19 +364,12 @@ export async function createProduct(productData: {
 
 export async function updateProduct(
   productId: string,
-  productData: {
-    name: string;
-    description: string;
-    category: string;
-    quantity: number;
-    weight: number;
-    price: number;
-  },
+  productData: FormData,
 ) {
   const res = await fetch(`${API_BASE_URL}/products/${productId}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(productData),
+    headers: getAuthHeaders(true),
+    body: productData,
   });
 
   const data = await res.json();
@@ -392,6 +380,8 @@ export async function updateProduct(
 
   return data;
 }
+
+
 
 export async function deleteProduct(productId: string) {
   const res = await fetch(`${API_BASE_URL}/products/${productId}`, {

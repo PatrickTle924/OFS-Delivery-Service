@@ -66,6 +66,8 @@ export default function InventoryPage() {
       weight: "",
       price: 0,
       reorderLevel: 10,
+      image_url: "",
+      image: undefined,
       lastRestocked: new Date().toISOString().split("T")[0],
     });
     setIsAddModalOpen(true);
@@ -96,35 +98,57 @@ export default function InventoryPage() {
     }));
   };
 
-  const handleSaveItem = async () => {
-    if (!formData.name?.trim()) {
-      alert("Please fill in the product name");
-      return;
-    }
 
-    try {
-      const payload = {
-        name: formData.name,
-        description: "",
-        category: formData.category || "fruits",
-        quantity: Number(formData.quantity ?? 0),
-        weight: Number(formData.weight) || 0,
-        price: Number(formData.price ?? 0),
-      };
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-      if (editingItem) {
-        await updateProduct(editingItem.id, payload);
-      } else {
-        await createProduct(payload);
-      }
-
-      await loadInventory();
-      handleCloseModal();
-    } catch (error) {
-      console.error("Failed to save item:", error);
-      alert("Failed to save item");
-    }
+  const reader = new FileReader();
+  reader.onload = () => {
+    setFormData((prev) => ({
+      ...prev,
+      image: file,
+      image_url: reader.result as string, // preview only
+    }));
   };
+  reader.readAsDataURL(file);
+};
+
+  const handleSaveItem = async () => {
+  if (!formData.name?.trim()) {
+    alert("Please fill in the product name");
+    return;
+  }
+
+  try {
+    const data = new FormData();
+
+    // text fields
+    data.append("name", formData.name);
+    data.append("description", "");
+    data.append("category", formData.category || "fruits");
+    data.append("quantity", String(Number(formData.quantity ?? 0)));
+    data.append("weight", String(Number(formData.weight) || 0));
+    data.append("price", String(Number(formData.price ?? 0)));
+
+    // image (only if selected)
+    if (formData.image) {
+      data.append("image", formData.image);
+    }
+
+    if (editingItem) {
+      await updateProduct(editingItem.id, data);
+    } else {
+      await createProduct(data);
+    }
+
+    await loadInventory();
+    handleCloseModal();
+  } catch (error) {
+    console.error("Failed to save item:", error);
+    alert("Failed to save item");
+  }
+};
 
   const handleDeleteItem = async (id: string) => {
     const confirmed = window.confirm(
@@ -331,6 +355,7 @@ export default function InventoryPage() {
                   </h2>
 
                   <div className="space-y-4">
+                        {/* product name */}
                     <div>
                       <label className="block text-sm font-medium text-forest mb-2">
                         Product Name *
@@ -347,18 +372,17 @@ export default function InventoryPage() {
 
                     <div>
                       <label className="block text-sm font-medium text-forest mb-2">
-                        SKU
+                        Image
                       </label>
                       <input
-                        type="text"
-                        name="sku"
-                        value={formData.sku || ""}
-                        onChange={handleFormChange}
-                        placeholder="e.g., PROD-001"
+                        type="file"
+                        name="image"
+                        accept="image/*"
+                        onChange={handleImageChange}
                         className="w-full px-4 py-2 rounded-lg border border-[#ddd] text-sm outline-none focus:border-sage focus:ring-2 focus:ring-sage/10"
                       />
                     </div>
-
+                      {/* Categories */}
                     <div>
                       <label className="block text-sm font-medium text-forest mb-2">
                         Category
@@ -378,6 +402,7 @@ export default function InventoryPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+                          {/* product quantity */}
                       <div>
                         <label className="block text-sm font-medium text-forest mb-2">
                           Quantity
@@ -390,21 +415,11 @@ export default function InventoryPage() {
                           className="w-full px-4 py-2 rounded-lg border border-[#ddd] text-sm outline-none focus:border-sage focus:ring-2 focus:ring-sage/10"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-forest mb-2">
-                          Reorder Level
-                        </label>
-                        <input
-                          type="number"
-                          name="reorderLevel"
-                          value={formData.reorderLevel || 0}
-                          onChange={handleFormChange}
-                          className="w-full px-4 py-2 rounded-lg border border-[#ddd] text-sm outline-none focus:border-sage focus:ring-2 focus:ring-sage/10"
-                        />
-                      </div>
+                      
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
+                          {/* product weight */}
                       <div>
                         <label className="block text-sm font-medium text-forest mb-2">
                           Weight
@@ -418,6 +433,7 @@ export default function InventoryPage() {
                           className="w-full px-4 py-2 rounded-lg border border-[#ddd] text-sm outline-none focus:border-sage focus:ring-2 focus:ring-sage/10"
                         />
                       </div>
+                          {/* Product Price */}
                       <div>
                         <label className="block text-sm font-medium text-forest mb-2">
                           Price
@@ -432,7 +448,7 @@ export default function InventoryPage() {
                         />
                       </div>
                     </div>
-
+                      {/* last restocked */}
                     <div>
                       <label className="block text-sm font-medium text-forest mb-2">
                         Last Restocked
@@ -446,7 +462,7 @@ export default function InventoryPage() {
                       />
                     </div>
                   </div>
-
+                        {/* final action buttons */}
                   <div className="flex gap-3 mt-8">
                     <button
                       onClick={handleCloseModal}
