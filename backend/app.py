@@ -3,6 +3,8 @@ import json
 import requests
 from functools import wraps
 from datetime import datetime, timezone
+from werkzeug.utils import secure_filename
+import uuid
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -32,6 +34,9 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 60 * 60 * 24  # 24 hours
 db.init_app(app)
 jwt = JWTManager(app)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 MAPBOX_ACCESS_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
 
@@ -1042,49 +1047,68 @@ def get_inventory():
     ]), 200
 
 
-
 @app.route('/products/<int:product_id>', methods=['PUT'])
 @role_required("employee")
-
 def update_product(product_id):
     product = Product.query.get(product_id)
 
     if not product:
         return jsonify({"error": "Product not found"}), 404
 
-    data = request.get_json()
+    try:
+        data = request.form
+        file = request.files.get("image")
 
-    product.name = data.get("name", product.name)
-    product.description = data.get("description", product.description)
-    product.weight = float(data.get("weight", product.weight))
-    product.cost = float(data.get("price", product.cost))
-    product.category = data.get("category", product.category)
-    product.stock = int(data.get("quantity", product.stock))
+        if file:
+            if not file.mimetype.startswith("image/"):
+                return jsonify({"error": "Invalid image file"}), 400
 
-    db.session.commit()
+            filename = secure_filename(file.filename)
+            unique_name = f"{uuid.uuid4()}_{filename}"
+            filepath = os.path.join(UPLOAD_FOLDER, unique_name)
 
-    return jsonify({
-        "message": "Product updated successfully",
-        "product": {
-            "id": str(product.product_id),
-            "name": product.name,
-            "sku": f"PROD-{product.product_id:03d}",
-            "category": (product.category or "").lower(),
-            "quantity": product.stock,
-            "weight": str(product.weight),
-            "price": product.cost,
-            "reorderLevel": 10,
-            "lastRestocked": (
-                product.updated_at.strftime("%Y-%m-%d")
-                if product.updated_at
-                else (
-                    product.created_at.strftime("%Y-%m-%d")
-                    if product.created_at
-                    else ""
-                )
-            ),
-        }
-    }), 200
+            file.save(filepath)
+            print("Saving file to:", filepath)
+
+            product.image_url = f"/static/uploads/{unique_name}"
+
+        product.name = data.get("name", product.name)
+        product.description = data.get("description", product.description)
+        product.weight = float(data.get("weight", product.weight))
+        product.cost = float(data.get("price", product.cost))
+        product.category = data.get("category", product.category)
+        product.stock = int(data.get("quantity", product.stock))
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Product updated successfully",
+            "product": {
+                "id": str(product.product_id),
+                "name": product.name,
+                "sku": f"PROD-{product.product_id:03d}",
+                "category": (product.category or "").lower(),
+                "quantity": product.stock,
+                "weight": str(product.weight),
+                "price": product.cost,
+                "image_url": product.image_url,
+                "reorderLevel": 10,
+                "lastRestocked": (
+                    product.updated_at.strftime("%Y-%m-%d")
+                    if product.updated_at
+                    else (
+                        product.created_at.strftime("%Y-%m-%d")
+                        if product.created_at
+                        else ""
+                    )
+                ),
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/products/<int:product_id>", methods=["DELETE"])
 @role_required("employee")
@@ -1107,10 +1131,25 @@ def delete_product(product_id):
 
 @app.route("/products", methods=["POST"])
 @role_required("employee")
-
 def create_product():
     try:
-        data = request.get_json()
+        data = request.form
+        file = request.files.get("image")
+
+        image_url = None
+
+        if file:
+            if not file.mimetype.startswith("image/"):
+                return jsonify({"error": "Invalid image file"}), 400
+
+            filename = secure_filename(file.filename)
+            unique_name = f"{uuid.uuid4()}_{filename}"
+            filepath = os.path.join(UPLOAD_FOLDER, unique_name)
+
+            file.save(filepath)
+            print("Saving file to:", filepath)
+
+            image_url = f"/static/uploads/{unique_name}"
 
         new_product = Product(
             name=data.get("name"),
@@ -1119,6 +1158,7 @@ def create_product():
             cost=float(data.get("price", 0)),
             category=data.get("category"),
             stock=int(data.get("quantity", 0)),
+            image_url=image_url,  
         )
 
         db.session.add(new_product)
@@ -1126,13 +1166,13 @@ def create_product():
 
         return jsonify({
             "message": "Product created successfully",
-            "id": new_product.product_id
+            "id": new_product.product_id,
+            "image_url": image_url
         }), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
-    
+        return jsonify({"error": str(e)}), 500   
 
 @app.route('/health', methods=['GET'])
 def health():
