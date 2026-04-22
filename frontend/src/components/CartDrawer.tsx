@@ -44,6 +44,8 @@ const IconCartEmpty = () => (
   </svg>
 );
 
+const API_BASE_URL = "http://localhost:5000";
+
 // ── Props ──────────────────────────────────────────────────────────
 interface CartDrawerProps {
   open: boolean;
@@ -60,6 +62,17 @@ export default function CartDrawer({ open, onClose, cart, onAdd, onRemove, onDel
   const totalWeight = cart.reduce((s, i) => s + i.product.weight * i.quantity, 0);
   const deliveryFee = totalWeight >= DELIVERY_THRESHOLD ? DELIVERY_FEE : 0;
   const orderTotal  = totalPrice + deliveryFee;
+
+
+const getImageSrc = (imageUrl?: string) => {
+    if (!imageUrl) return "/placeholder.png";
+  
+    if (imageUrl.startsWith("http")) {
+      return imageUrl;
+    }
+  
+    return `${API_BASE_URL}${imageUrl}`;
+  };
 
   return (
     <>
@@ -117,7 +130,7 @@ export default function CartDrawer({ open, onClose, cart, onAdd, onRemove, onDel
                   {/* Thumbnail */}
                   <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-warm/40">
                     <img
-                      src={item.product.imageUrl}
+                      src={getImageSrc(item.product.imageUrl)}
                       alt={item.product.name}
                       className="w-full h-full object-cover"
                     />

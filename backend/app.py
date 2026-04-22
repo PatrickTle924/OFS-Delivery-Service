@@ -1025,46 +1025,66 @@ def get_inventory():
 
 @app.route('/products/<int:product_id>', methods=['PUT'])
 @role_required("employee")
-
 def update_product(product_id):
     product = Product.query.get(product_id)
 
     if not product:
         return jsonify({"error": "Product not found"}), 404
 
-    data = request.get_json()
+    try:
+        data = request.form
+        file = request.files.get("image")
 
-    product.name = data.get("name", product.name)
-    product.description = data.get("description", product.description)
-    product.weight = float(data.get("weight", product.weight))
-    product.cost = float(data.get("price", product.cost))
-    product.category = data.get("category", product.category)
-    product.stock = int(data.get("quantity", product.stock))
+        if file:
+            if not file.mimetype.startswith("image/"):
+                return jsonify({"error": "Invalid image file"}), 400
 
-    db.session.commit()
+            filename = secure_filename(file.filename)
+            unique_name = f"{uuid.uuid4()}_{filename}"
+            filepath = os.path.join(UPLOAD_FOLDER, unique_name)
 
-    return jsonify({
-        "message": "Product updated successfully",
-        "product": {
-            "id": str(product.product_id),
-            "name": product.name,
-            "sku": f"PROD-{product.product_id:03d}",
-            "category": (product.category or "").lower(),
-            "quantity": product.stock,
-            "weight": str(product.weight),
-            "price": product.cost,
-            "reorderLevel": 10,
-            "lastRestocked": (
-                product.updated_at.strftime("%Y-%m-%d")
-                if product.updated_at
-                else (
-                    product.created_at.strftime("%Y-%m-%d")
-                    if product.created_at
-                    else ""
-                )
-            ),
-        }
-    }), 200
+            file.save(filepath)
+            print("Saving file to:", filepath)
+
+            product.image_url = f"/static/uploads/{unique_name}"
+
+        product.name = data.get("name", product.name)
+        product.description = data.get("description", product.description)
+        product.weight = float(data.get("weight", product.weight))
+        product.cost = float(data.get("price", product.cost))
+        product.category = data.get("category", product.category)
+        product.stock = int(data.get("quantity", product.stock))
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Product updated successfully",
+            "product": {
+                "id": str(product.product_id),
+                "name": product.name,
+                "sku": f"PROD-{product.product_id:03d}",
+                "category": (product.category or "").lower(),
+                "quantity": product.stock,
+                "weight": str(product.weight),
+                "price": product.cost,
+                "image_url": product.image_url,
+                "reorderLevel": 10,
+                "lastRestocked": (
+                    product.updated_at.strftime("%Y-%m-%d")
+                    if product.updated_at
+                    else (
+                        product.created_at.strftime("%Y-%m-%d")
+                        if product.created_at
+                        else ""
+                    )
+                ),
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/products/<int:product_id>", methods=["DELETE"])
 @role_required("employee")
