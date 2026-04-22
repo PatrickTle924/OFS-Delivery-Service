@@ -95,6 +95,12 @@ export default function Navbar({
       >
         Track
       </Link>
+      <Link
+        href="/user/tickets"
+        className="hidden md:block text-sm font-medium text-forest/60 hover:text-forest transition-colors duration-200"
+      >
+        Tickets
+      </Link>
     </>
   ) : null;
 

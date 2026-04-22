@@ -1,36 +1,56 @@
 "use client";
 
 import { useState } from "react";
+import { submitReport } from "@/lib/api-service";
 
-const REPORT_TYPES = [
-  { value: "damaged_item", label: "Damaged Item" },
-  { value: "missing_item", label: "Missing Item" },
-  { value: "wrong_item", label: "Wrong Item Delivered" },
-  { value: "late_delivery", label: "Late Delivery" },
-  { value: "other", label: "Other" },
-];
+const ISSUE_TYPES = [
+  {
+    value: "missing_item",
+    label: "Missing items in my order",
+    description: "One or more items I ordered were not included",
+  },
+  {
+    value: "damaged_item",
+    label: "Item arrived damaged or defective",
+    description: "The item was broken, crushed, or spoiled on arrival",
+  },
+  {
+    value: "wrong_item",
+    label: "Wrong item was delivered",
+    description: "I received a different item than what I ordered",
+  },
+  {
+    value: "late_delivery",
+    label: "Order never arrived or very late",
+    description: "My delivery was significantly delayed or never showed up",
+  },
+  {
+    value: "poor_quality",
+    label: "Item quality was poor",
+    description: "The item was not fresh or below the expected quality",
+  },
+  {
+    value: "other",
+    label: "Other issue",
+    description: "Something else went wrong with my order",
+  },
+] as const;
 
 interface ReportModalProps {
   open: boolean;
   orderId: number;
-  customerId: number;
   onClose: () => void;
 }
 
-export default function ReportModal({
-  open,
-  orderId,
-  customerId,
-  onClose,
-}: ReportModalProps) {
-  const [reportType, setReportType] = useState("");
+export default function ReportModal({ open, orderId, onClose }: ReportModalProps) {
+  const [selectedType, setSelectedType] = useState<string>("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
   const handleClose = () => {
-    setReportType("");
+    setSelectedType("");
     setDescription("");
     setSubmitting(false);
     setSubmitted(false);
@@ -40,31 +60,13 @@ export default function ReportModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reportType || !description.trim()) {
-      setError("Please fill in all fields.");
-      return;
-    }
+    if (!selectedType) { setError("Please select an issue type."); return; }
+    if (!description.trim()) { setError("Please describe the issue."); return; }
 
     setSubmitting(true);
     setError("");
-
     try {
-      const res = await fetch("http://localhost:5000/reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          order_id: orderId,
-          customer_id: customerId,
-          report_type: reportType,
-          description: description.trim(),
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to submit report");
-      }
-
+      await submitReport(orderId, selectedType, description.trim());
       setSubmitted(true);
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
@@ -83,19 +85,19 @@ export default function ReportModal({
         onClick={handleClose}
       />
 
-      {/* Drawer panel */}
+      {/* Drawer */}
       <div
         className={`fixed right-0 top-0 h-full w-full max-w-md bg-cream z-50 shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-forest/10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-forest/10 shrink-0">
           <div>
-            <p className="text-xs font-medium text-sage uppercase tracking-widest mb-1">
+            <p className="text-sage text-xs font-medium tracking-widest uppercase mb-1">
               Order #{orderId}
             </p>
-            <h2 className="font-playfair text-2xl text-forest">Report an Issue</h2>
+            <h2 className="font-playfair text-2xl text-forest">Report a Problem</h2>
           </div>
           <button
             onClick={handleClose}
@@ -119,48 +121,65 @@ export default function ReportModal({
               </div>
               <h3 className="font-playfair text-xl text-forest">Report Submitted</h3>
               <p className="text-sm text-[#777] font-light max-w-xs">
-                Thank you for letting us know. Our team will review your report and follow up shortly.
+                Thank you for letting us know. Our team will review your report and be in touch shortly.
               </p>
               <button
                 onClick={handleClose}
                 className="mt-4 bg-forest text-cream text-sm font-medium px-6 py-2.5 rounded-xl hover:bg-sage transition-colors"
               >
-                Close
+                Done
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-              <p className="text-sm text-[#777] font-light">
-                Tell us what went wrong with your order and we'll look into it right away.
+              <p className="text-sm text-[#777]">
+                What went wrong with your order? We'll look into it right away.
               </p>
 
-              {/* Report type */}
+              {/* Issue type — Amazon-style radio list */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-forest/60 uppercase tracking-widest">
-                  Issue Type
+                  Select issue type
                 </label>
-                <select
-                  value={reportType}
-                  onChange={(e) => setReportType(e.target.value)}
-                  className="w-full rounded-xl border-[1.5px] border-sage/40 focus:border-sage focus:ring-2 focus:ring-sage/10 outline-none bg-white px-4 py-3 text-sm text-forest appearance-none"
-                >
-                  <option value="" disabled>Select an issue type...</option>
-                  {REPORT_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
+                <div className="flex flex-col gap-2">
+                  {ISSUE_TYPES.map((type) => (
+                    <label
+                      key={type.value}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors ${
+                        selectedType === type.value
+                          ? "bg-sage/10 border-sage/40"
+                          : "bg-white border-forest/10 hover:border-sage/30 hover:bg-sage/5"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="report_type"
+                        value={type.value}
+                        checked={selectedType === type.value}
+                        onChange={() => setSelectedType(type.value)}
+                        className="mt-0.5 accent-sage shrink-0"
+                      />
+                      <div>
+                        <p className={`text-sm font-medium ${selectedType === type.value ? "text-forest" : "text-forest/80"}`}>
+                          {type.label}
+                        </p>
+                        <p className="text-xs text-[#999] mt-0.5">{type.description}</p>
+                      </div>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               {/* Description */}
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-forest/60 uppercase tracking-widest">
-                  Description
+                  Additional details
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Please describe the issue in detail..."
-                  rows={5}
+                  placeholder="Please describe what happened in more detail..."
+                  rows={4}
                   className="w-full rounded-xl border-[1.5px] border-sage/40 focus:border-sage focus:ring-2 focus:ring-sage/10 outline-none bg-white px-4 py-3 text-sm text-forest resize-none"
                 />
               </div>

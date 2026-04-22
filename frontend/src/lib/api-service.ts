@@ -461,10 +461,56 @@ export interface ReportItem {
   report_id: number;
   order_id: number;
   customer_id: number;
+  customer_name?: string;
+  order_total?: number;
   report_type: string;
   description: string;
   status: "open" | "in_review" | "resolved";
+  refund_status?: "none" | "partial" | "full";
+  refund_amount?: number;
   created_at: string;
+}
+
+export interface ReportMessage {
+  message_id: number;
+  report_id: number;
+  sender_role: "employee" | "customer";
+  sender_name: string;
+  message: string;
+  created_at: string;
+}
+
+export interface OrderItemDetail {
+  order_item_id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  unit_weight: number;
+}
+
+export async function submitReport(
+  orderId: number,
+  reportType: string,
+  description: string,
+): Promise<{ message: string; report_id: number }> {
+  const response = await fetch(`${API_BASE_URL}/reports`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      order_id: orderId,
+      report_type: reportType,
+      description,
+    }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to submit report");
+  }
+
+  return data;
 }
 
 export async function fetchReports(): Promise<ReportItem[]> {
@@ -496,6 +542,90 @@ export async function updateReportStatus(
 
   if (!response.ok) {
     throw new Error(data?.error || "Failed to update report");
+  }
+
+  return data;
+}
+
+export async function fetchMyReports(): Promise<ReportItem[]> {
+  const response = await fetch(`${API_BASE_URL}/reports/mine`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to fetch your reports");
+  }
+
+  return data;
+}
+
+export async function submitRefund(
+  reportId: number,
+  refundType: "full" | "partial",
+  amount?: number,
+): Promise<{ message: string; refund_amount: number }> {
+  const response = await fetch(`${API_BASE_URL}/reports/${reportId}/refund`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ refund_type: refundType, amount }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to issue refund");
+  }
+
+  return data;
+}
+
+export async function fetchReportMessages(reportId: number): Promise<ReportMessage[]> {
+  const response = await fetch(`${API_BASE_URL}/reports/${reportId}/messages`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to fetch messages");
+  }
+
+  return data;
+}
+
+export async function sendReportMessage(
+  reportId: number,
+  message: string,
+): Promise<{ message: string; message_id: number }> {
+  const response = await fetch(`${API_BASE_URL}/reports/${reportId}/messages`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ message }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to send message");
+  }
+
+  return data;
+}
+
+export async function fetchOrderItems(orderId: number): Promise<OrderItemDetail[]> {
+  const response = await fetch(`${API_BASE_URL}/orders/${orderId}/items`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to fetch order items");
   }
 
   return data;

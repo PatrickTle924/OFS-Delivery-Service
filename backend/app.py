@@ -16,7 +16,7 @@ from flask_jwt_extended import (
 from sqlalchemy import text
 import os
 from datetime import timezone
-from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report
+from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report, ReportMessage
 from database import db
 
 app = Flask(__name__)
@@ -256,6 +256,12 @@ def run_schema_migrations():
     )
     db.session.execute(
         text("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP")
+    )
+    db.session.execute(
+        text("ALTER TABLE reports ADD COLUMN IF NOT EXISTS refund_status VARCHAR(20) DEFAULT 'none'")
+    )
+    db.session.execute(
+        text("ALTER TABLE reports ADD COLUMN IF NOT EXISTS refund_amount FLOAT DEFAULT 0.0")
     )
     db.session.commit()
 
@@ -1317,26 +1323,31 @@ def get_active_orders():
 @app.route('/reports', methods=['POST'])
 @role_required("customer")
 def create_report():
-    data = request.get_json()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.customer_profile:
+        return jsonify({"error": "Customer profile not found"}), 404
+
+    data = request.get_json(silent=True) or {}
 
     order_id = data.get('order_id')
-    customer_id = data.get('customer_id')
-    report_type = data.get('report_type', '').strip()
-    description = data.get('description', '').strip()
+    report_type = (data.get('report_type') or '').strip()
+    description = (data.get('description') or '').strip()
 
-    if not all([order_id, customer_id, report_type, description]):
+    if not all([order_id, report_type, description]):
         return jsonify({"error": "Missing required fields"}), 400
 
     order = Order.query.get(order_id)
     if not order:
         return jsonify({"error": "Order not found"}), 404
 
-    if order.customer_id != customer_id:
+    if order.customer_id != user.customer_profile.id:
         return jsonify({"error": "Order does not belong to this customer"}), 403
 
     report = Report(
         order_id=order_id,
-        customer_id=customer_id,
+        customer_id=user.customer_profile.id,
         report_type=report_type,
         description=description,
         status="open",
@@ -1352,17 +1363,191 @@ def create_report():
 def get_reports():
     reports = Report.query.order_by(Report.created_at.desc()).all()
 
+    def serialize(r):
+        customer_name = None
+        if r.customer and r.customer.user:
+            u = r.customer.user
+            customer_name = f"{u.first_name} {u.last_name}"
+        order_total = r.order.total_cost if r.order else None
+        return {
+            "report_id": r.report_id,
+            "order_id": r.order_id,
+            "customer_id": r.customer_id,
+            "customer_name": customer_name,
+            "report_type": r.report_type,
+            "description": r.description,
+            "status": r.status,
+            "refund_status": r.refund_status or "none",
+            "refund_amount": r.refund_amount or 0.0,
+            "order_total": order_total,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+
+    return jsonify([serialize(r) for r in reports]), 200
+
+
+@app.route('/reports/mine', methods=['GET'])
+@role_required("customer")
+def get_my_reports():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.customer_profile:
+        return jsonify({"error": "Customer profile not found"}), 404
+
+    reports = (
+        Report.query
+        .filter_by(customer_id=user.customer_profile.id)
+        .order_by(Report.created_at.desc())
+        .all()
+    )
+
     return jsonify([
         {
             "report_id": r.report_id,
             "order_id": r.order_id,
-            "customer_id": r.customer_id,
             "report_type": r.report_type,
             "description": r.description,
             "status": r.status,
+            "refund_status": r.refund_status or "none",
+            "refund_amount": r.refund_amount or 0.0,
+            "order_total": r.order.total_cost if r.order else None,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
         for r in reports
+    ]), 200
+
+
+@app.route('/reports/<int:report_id>/refund', methods=['POST'])
+@role_required("employee")
+def issue_refund(report_id):
+    report = Report.query.get(report_id)
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    refund_type = data.get('refund_type', 'full')   # "full" or "partial"
+    amount = data.get('amount')
+
+    order = report.order
+    if not order:
+        return jsonify({"error": "Associated order not found"}), 404
+
+    if refund_type == 'full':
+        refund_amount = order.total_cost
+        report.refund_status = 'full'
+    else:
+        if amount is None or float(amount) <= 0:
+            return jsonify({"error": "A positive amount is required for partial refunds"}), 400
+        refund_amount = round(float(amount), 2)
+        report.refund_status = 'partial'
+
+    report.refund_amount = refund_amount
+
+    # Mark payment as refunded if it exists
+    if order.payment:
+        order.payment.payment_status = 'refunded'
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Refund issued successfully",
+        "refund_amount": refund_amount,
+        "refund_status": report.refund_status,
+    }), 200
+
+
+@app.route('/reports/<int:report_id>/messages', methods=['GET'])
+@jwt_required()
+def get_report_messages(report_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    report = Report.query.get(report_id)
+
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    if user.role.value == "customer":
+        if not user.customer_profile or report.customer_id != user.customer_profile.id:
+            return jsonify({"error": "Access denied"}), 403
+
+    messages = (
+        ReportMessage.query
+        .filter_by(report_id=report_id)
+        .order_by(ReportMessage.created_at.asc())
+        .all()
+    )
+
+    return jsonify([
+        {
+            "message_id": m.message_id,
+            "sender_role": m.sender_role,
+            "sender_name": m.sender_name,
+            "message": m.message,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in messages
+    ]), 200
+
+
+@app.route('/reports/<int:report_id>/messages', methods=['POST'])
+@jwt_required()
+def send_report_message(report_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    report = Report.query.get(report_id)
+
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    if user.role.value == "customer":
+        if not user.customer_profile or report.customer_id != user.customer_profile.id:
+            return jsonify({"error": "Access denied"}), 403
+    elif user.role.value != "employee":
+        return jsonify({"error": "Access denied"}), 403
+
+    data = request.get_json(silent=True) or {}
+    text_body = (data.get('message') or '').strip()
+    if not text_body:
+        return jsonify({"error": "Message cannot be empty"}), 400
+
+    sender_name = f"{user.first_name} {user.last_name}"
+
+    msg = ReportMessage(
+        report_id=report_id,
+        sender_role=user.role.value,
+        sender_name=sender_name,
+        message=text_body,
+    )
+    db.session.add(msg)
+    db.session.commit()
+
+    return jsonify({
+        "message_id": msg.message_id,
+        "sender_role": msg.sender_role,
+        "sender_name": msg.sender_name,
+        "message": msg.message,
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+    }), 201
+
+
+@app.route('/orders/<int:order_id>/items', methods=['GET'])
+@role_required("employee")
+def get_order_items(order_id):
+    order = Order.query.get(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
+    return jsonify([
+        {
+            "order_item_id": item.order_item_id,
+            "product_id": item.product_id,
+            "name": item.product.name if item.product else f"Product #{item.product_id}",
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "line_total": round(item.unit_price * item.quantity, 2),
+        }
+        for item in order.order_items
     ]), 200
 
 

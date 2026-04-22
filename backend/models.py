@@ -171,8 +171,23 @@ class Report(db.Model):
     description = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(50), default="open")
 
+    refund_status = db.Column(db.String(20), default="none")   # none | partial | full
+    refund_amount = db.Column(db.Float, default=0.0)
+
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc))
 
     order = db.relationship("Order", backref="reports")
     customer = db.relationship("CustomerProfile", backref="reports")
+    messages = db.relationship("ReportMessage", backref="report", lazy=True, order_by="ReportMessage.created_at")
+
+
+class ReportMessage(db.Model):
+    __tablename__ = "report_messages"
+
+    message_id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.Integer, db.ForeignKey("reports.report_id"), nullable=False)
+    sender_role = db.Column(db.String(20), nullable=False)   # employee | customer
+    sender_name = db.Column(db.String(100), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
