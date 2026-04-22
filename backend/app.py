@@ -1369,6 +1369,7 @@ def get_reports():
             u = r.customer.user
             customer_name = f"{u.first_name} {u.last_name}"
         order_total = r.order.total_cost if r.order else None
+        msgs = r.messages or []
         return {
             "report_id": r.report_id,
             "order_id": r.order_id,
@@ -1380,6 +1381,8 @@ def get_reports():
             "refund_status": r.refund_status or "none",
             "refund_amount": r.refund_amount or 0.0,
             "order_total": order_total,
+            "message_count": len(msgs),
+            "last_message_role": msgs[-1].sender_role if msgs else None,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
 
@@ -1412,6 +1415,8 @@ def get_my_reports():
             "refund_status": r.refund_status or "none",
             "refund_amount": r.refund_amount or 0.0,
             "order_total": r.order.total_cost if r.order else None,
+            "message_count": len(r.messages or []),
+            "last_message_role": r.messages[-1].sender_role if r.messages else None,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
         for r in reports

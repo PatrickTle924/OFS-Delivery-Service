@@ -468,6 +468,8 @@ export interface ReportItem {
   status: "open" | "in_review" | "resolved";
   refund_status?: "none" | "partial" | "full";
   refund_amount?: number;
+  message_count?: number;
+  last_message_role?: "employee" | "customer" | null;
   created_at: string;
 }
 

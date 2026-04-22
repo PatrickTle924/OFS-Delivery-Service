@@ -47,6 +47,12 @@ interface Props {
 export default function EmployeeReportCard({ report, onUpdated }: Props) {
   const [expanded, setExpanded] = useState(false);
 
+  // Message signal — tracks count + last sender role locally so it refreshes after sends
+  const [msgCount, setMsgCount] = useState(report.message_count ?? 0);
+  const [lastMsgRole, setLastMsgRole] = useState<"employee" | "customer" | null>(
+    report.last_message_role ?? null
+  );
+
   // Status
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -121,6 +127,8 @@ export default function EmployeeReportCard({ report, onUpdated }: Props) {
       await sendReportMessage(report.report_id, newMessage.trim());
       const updated = await fetchReportMessages(report.report_id);
       setMessages(updated);
+      setMsgCount(updated.length);
+      setLastMsgRole("employee");
       setNewMessage("");
     } catch (err) {
       console.error(err);
@@ -197,6 +205,19 @@ export default function EmployeeReportCard({ report, onUpdated }: Props) {
             {alreadyRefunded && (
               <span className={`text-[10px] font-bold uppercase tracking-tighter px-2 py-0.5 rounded-full border ${REFUND_BADGE[report.refund_status!]}`}>
                 {report.refund_status} refund ${report.refund_amount?.toFixed(2)}
+              </span>
+            )}
+            {msgCount > 0 && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                lastMsgRole === "customer"
+                  ? "bg-orange-100 text-orange-700 border-orange-200"
+                  : "bg-forest/5 text-forest/50 border-forest/10"
+              }`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                  <path fillRule="evenodd" d="M4.848 2.771A49.144 49.144 0 0112 2.25c2.43 0 4.817.178 7.152.52 1.978.292 3.348 2.024 3.348 3.97v6.02c0 1.946-1.37 3.678-3.348 3.97a48.901 48.901 0 01-3.476.383.39.39 0 00-.297.17l-2.755 4.133a.75.75 0 01-1.248 0l-2.755-4.133a.39.39 0 00-.297-.17 48.9 48.9 0 01-3.476-.384c-1.978-.29-3.348-2.024-3.348-3.97V6.741c0-1.946 1.37-3.68 3.348-3.97z" clipRule="evenodd" />
+                </svg>
+                {msgCount}
+                {lastMsgRole === "customer" && <span className="ml-0.5">· needs reply</span>}
               </span>
             )}
           </div>
