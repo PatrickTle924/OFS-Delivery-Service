@@ -53,7 +53,7 @@ export default function CheckoutPage() {
 
         const fullName = `${profile.firstName} ${profile.lastName}`.trim();
         const address = profile.address || "";
-        const city = "San Jose"
+        const city = "San Jose";
 
         setDeliveryInfo((prev) => ({
           ...prev,
@@ -126,22 +126,22 @@ export default function CheckoutPage() {
 
       const address = `${deliveryInfo.addressLine1}, ${deliveryInfo.city}, CA ${deliveryInfo.zipCode}`;
       const res = await fetch(
-      `http://localhost:5000/geocode?address=${encodeURIComponent(address)}`
-    );
+        `http://localhost:5000/geocode?address=${encodeURIComponent(address)}`,
+      );
 
-    const data = await res.json();
-    const lat = data.lat;
-    const lng = data.lng;
+      const data = await res.json();
+      const lat = data.lat;
+      const lng = data.lng;
 
-    if (!res.ok) {
-  throw new Error(data.error || "Geocoding failed");
-}
+      if (!res.ok) {
+        throw new Error(data.error || "Geocoding failed");
+      }
 
-if (typeof data.lat !== "number" || typeof data.lng !== "number") {
-  throw new Error("Invalid geocoding response");
-}
+      if (typeof data.lat !== "number" || typeof data.lng !== "number") {
+        throw new Error("Invalid geocoding response");
+      }
 
-  console.log(data);
+      console.log(data);
       const payload = {
         deliveryInfo,
         items: cart.map((item) => ({
@@ -185,16 +185,34 @@ if (typeof data.lat !== "number" || typeof data.lng !== "number") {
 
   return (
     <CustomerRoute>
-      <div className="min-h-screen bg-zinc-100 px-6 py-10 text-black">
+      <div className="min-h-screen bg-[#f7f3eb] px-6 py-10 text-[#1f4d36]">
         <Navbar alwaysFrosted cartItemCount={totalItems} />
+
         <div className="mx-auto max-w-6xl pt-24">
-          <h1 className="mb-8 text-4xl font-bold">Checkout</h1>
+          <div className="mb-8">
+            <p className="mb-2 text-sm uppercase tracking-[0.2em] text-[#a06d42]">
+              OFS Market
+            </p>
+            <h1 className="text-5xl font-semibold leading-tight text-[#1f4d36]">
+              Checkout for fresh groceries,
+              <span className="ml-2 italic text-[#c4855a]">
+                delivered today.
+              </span>
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm text-[#666]">
+              Review your items, confirm your delivery information, and place
+              your order.
+            </p>
+          </div>
 
           <div className="grid gap-8 md:grid-cols-2">
-            <div className="rounded-2xl bg-white p-6 shadow">
-              <h2 className="mb-4 text-2xl font-semibold">
+            <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
+              <h2 className="mb-2 text-3xl font-semibold text-[#1f4d36]">
                 Delivery Information
               </h2>
+              <p className="mb-5 text-sm text-[#666]">
+                We prefilled what we already know from your account.
+              </p>
 
               {loadingProfile ? (
                 <p className="text-sm text-zinc-500">Loading profile...</p>
@@ -205,94 +223,104 @@ if (typeof data.lat !== "number" || typeof data.lng !== "number") {
                     placeholder="Full Name"
                     value={deliveryInfo.fullName}
                     onChange={handleChange}
-                    className="rounded-lg border p-3"
+                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
                   />
                   <input
                     name="phone"
                     placeholder="Phone Number"
                     value={deliveryInfo.phone}
                     onChange={handleChange}
-                    className="rounded-lg border p-3"
+                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
                   />
                   <input
                     name="addressLine1"
                     placeholder="Street Address"
                     value={deliveryInfo.addressLine1}
                     onChange={handleChange}
-                    className="rounded-lg border p-3"
+                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
                   />
                   <input
                     name="addressLine2"
                     placeholder="Apartment / Unit"
                     value={deliveryInfo.addressLine2}
                     onChange={handleChange}
-                    className="rounded-lg border p-3"
+                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
                   />
-                  <input
-                    name="city"
-                    placeholder="City"
-                    value={deliveryInfo.city}
-                    onChange={handleChange}
-                    className="rounded-lg border p-3"
-                  />
-                  <input
-                    name="zipCode"
-                    placeholder="ZIP Code"
-                    value={deliveryInfo.zipCode}
-                    onChange={handleChange}
-                    className="rounded-lg border p-3"
-                  />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <input
+                      name="city"
+                      placeholder="City"
+                      value={deliveryInfo.city}
+                      onChange={handleChange}
+                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                    />
+                    <input
+                      name="zipCode"
+                      placeholder="ZIP Code"
+                      value={deliveryInfo.zipCode}
+                      onChange={handleChange}
+                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                    />
+                  </div>
                   <textarea
                     name="instructions"
                     placeholder="Delivery Instructions"
                     value={deliveryInfo.instructions}
                     onChange={handleChange}
-                    className="rounded-lg border p-3"
+                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
                     rows={4}
                   />
                 </div>
               )}
             </div>
 
-            <div className="rounded-2xl bg-white p-6 shadow">
-              <h2 className="mb-4 text-2xl font-semibold">Order Summary</h2>
+            <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
+              <h2 className="mb-4 text-3xl font-semibold text-[#1f4d36]">
+                Order Summary
+              </h2>
 
               <div className="space-y-4">
                 {cart.map((item) => (
                   <div
                     key={item.product.id}
-                    className="flex items-center justify-between border-b pb-3"
+                    className="rounded-2xl border border-[#efe5d7] bg-[#fcfaf5] p-4"
                   >
-                    <div>
-                      <p className="font-medium">{item.product.name}</p>
-                      <div className="mt-1 flex items-center gap-2 text-sm text-zinc-500">
-                        <button
-                          onClick={() => removeOne(item.product.id)}
-                          className="rounded border px-2"
-                        >
-                          -
-                        </button>
-                        <span>Qty: {item.quantity}</span>
-                        <button
-                          onClick={() => addToCart(item.product)}
-                          className="rounded border px-2"
-                        >
-                          +
-                        </button>
-                        <button
-                          onClick={() => removeFromCart(item.product.id)}
-                          className="ml-2 text-red-600"
-                        >
-                          Remove
-                        </button>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-[#1f4d36]">
+                          {item.product.name}
+                        </p>
+                        <div className="mt-2 flex items-center gap-2 text-sm text-zinc-500">
+                          <button
+                            onClick={() => removeOne(item.product.id)}
+                            className="rounded-lg border border-[#d8d2c6] px-2 py-1 hover:bg-[#f1e7d8]"
+                          >
+                            -
+                          </button>
+                          <span>Qty: {item.quantity}</span>
+                          <button
+                            onClick={() => addToCart(item.product)}
+                            className="rounded-lg border border-[#d8d2c6] px-2 py-1 hover:bg-[#f1e7d8]"
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => removeFromCart(item.product.id)}
+                            className="ml-2 text-red-600 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
+                      <p className="font-medium text-[#1f4d36]">
+                        ${(item.product.price * item.quantity).toFixed(2)}
+                      </p>
                     </div>
-                    <p>${(item.product.price * item.quantity).toFixed(2)}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 space-y-2 text-sm">
+              <div className="mt-6 space-y-2 rounded-2xl bg-[#f8f2e8] p-5 text-sm">
                 <div className="flex justify-between">
                   <span>Items</span>
                   <span>{totalItems}</span>
@@ -311,30 +339,35 @@ if (typeof data.lat !== "number" || typeof data.lng !== "number") {
                 </div>
                 <p className="text-xs text-zinc-500">
                   Orders under {DELIVERY_THRESHOLD} lbs ship free. Orders at{" "}
-                  {DELIVERY_THRESHOLD} lbs or more have a ${DELIVERY_FEE.toFixed(2)} delivery fee.
+                  {DELIVERY_THRESHOLD} lbs or more have a $
+                  {DELIVERY_FEE.toFixed(2)} delivery fee.
                 </p>
                 <div className="flex justify-between">
                   <span>Tax</span>
                   <span>${tax.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between border-t pt-3 text-lg font-bold">
+                <div className="flex justify-between border-t border-[#ddd] pt-3 text-lg font-bold text-[#1f4d36]">
                   <span>Total</span>
                   <span>${total.toFixed(2)}</span>
                 </div>
               </div>
 
               {errorMessage && (
-                <p className="mt-4 text-sm text-red-600">{errorMessage}</p>
+                <p className="mt-4 rounded-xl border border-[#f5c0c0] bg-[#fdeaea] px-4 py-3 text-sm text-red-600">
+                  {errorMessage}
+                </p>
               )}
 
               {successMessage && (
-                <p className="mt-4 text-sm text-green-600">{successMessage}</p>
+                <p className="mt-4 rounded-xl border border-[#b7dec1] bg-[#edf8f0] px-4 py-3 text-sm text-green-700">
+                  {successMessage}
+                </p>
               )}
 
               <button
                 onClick={handlePlaceOrder}
                 disabled={loading || loadingProfile || cart.length === 0}
-                className="mt-6 w-full rounded-xl bg-black px-4 py-3 text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                className="mt-6 w-full rounded-xl bg-[#1f4d36] px-4 py-3 text-white transition hover:bg-[#2f644a] disabled:opacity-50"
               >
                 {loading ? "Processing..." : "Place Order"}
               </button>
