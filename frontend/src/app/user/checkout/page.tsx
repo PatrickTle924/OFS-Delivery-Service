@@ -1,12 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+// 1. Import Stripe dependencies
+import { loadStripe } from "@stripe/stripe-js";
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+
 import Navbar from "@/components/Navbar";
 import CustomerRoute from "@/components/CustomerRoute";
 import { useCart } from "@/context/CartContext";
-import { fetchUserProfile, placeOrder } from "@/lib/api-service";
+import { fetchUserProfile } from "@/lib/api-service";
+// 2. Import your new Server Action (Adjust path as needed)
+import { createCheckoutSession } from "@/app/actions/stripe"; 
 import { DELIVERY_FEE, DELIVERY_THRESHOLD } from "@/types/shop";
+
+const PENDING_ORDER_KEY_PREFIX = "ofs-pending-order-";
+
+// 3. Initialize Stripe exactly once outside the component render cycle
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
 
 type DeliveryInfo = {
   fullName: string;
@@ -19,8 +29,6 @@ type DeliveryInfo = {
 };
 
 export default function CheckoutPage() {
-  const router = useRouter();
-
   const {
     cart,
     totalItems,
@@ -28,7 +36,7 @@ export default function CheckoutPage() {
     addToCart,
     removeOne,
     removeFromCart,
-    clearCart,
+    // Note: We don't clearCart() here anymore; rely on the webhook or success page.
   } = useCart();
 
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
@@ -43,8 +51,10 @@ export default function CheckoutPage() {
 
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
-  const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  
+  // 4. State to track the Stripe Client Secret
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -101,9 +111,9 @@ export default function CheckoutPage() {
     }));
   }
 
-  async function handlePlaceOrder() {
+  // 5. Refactored function to initialize Stripe instead of placing the order directly
+  async function handleProceedToPayment() {
     setErrorMessage("");
-    setSuccessMessage("");
 
     if (cart.length === 0) {
       setErrorMessage("Your cart is empty.");
@@ -133,15 +143,11 @@ export default function CheckoutPage() {
       const lat = data.lat;
       const lng = data.lng;
 
-      if (!res.ok) {
-        throw new Error(data.error || "Geocoding failed");
-      }
-
+      if (!res.ok) throw new Error(data.error || "Geocoding failed");
       if (typeof data.lat !== "number" || typeof data.lng !== "number") {
         throw new Error("Invalid geocoding response");
       }
 
-      console.log(data);
       const payload = {
         deliveryInfo,
         items: cart.map((item) => ({
@@ -162,21 +168,29 @@ export default function CheckoutPage() {
         delivery_lng: lng,
       };
 
-      const result = await placeOrder(payload);
+      // 6. Call the Server Action
+      const response = await createCheckoutSession(payload);
+      
+      if (!response || !response.clientSecret || !response.sessionId) {
+        throw new Error("Failed to initialize payment gateway.");
+      }
 
-      setSuccessMessage(
-        `Order placed successfully! Order ID: ${result.order_id}`,
-      );
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          `${PENDING_ORDER_KEY_PREFIX}${response.sessionId}`,
+          JSON.stringify(payload),
+        );
+      }
 
-      clearCart();
-      localStorage.removeItem("ofs-cart");
-      router.push("/user/order-history");
+      // 7. Set the secret to reveal the Embedded Checkout component
+      setClientSecret(response.clientSecret);
+
     } catch (error) {
       console.error(error);
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Failed to place order. Please try again.",
+          : "Failed to initialize payment. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -200,179 +214,188 @@ export default function CheckoutPage() {
               </span>
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-[#666]">
-              Review your items, confirm your delivery information, and place
-              your order.
+              {clientSecret 
+                ? "Complete your payment securely below." 
+                : "Review your items, confirm your delivery information, and proceed to payment."}
             </p>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
-              <h2 className="mb-2 text-3xl font-semibold text-[#1f4d36]">
-                Delivery Information
-              </h2>
-              <p className="mb-5 text-sm text-[#666]">
-                We prefilled what we already know from your account.
-              </p>
-
-              {loadingProfile ? (
-                <p className="text-sm text-zinc-500">Loading profile...</p>
-              ) : (
-                <div className="grid gap-4">
-                  <input
-                    name="fullName"
-                    placeholder="Full Name"
-                    value={deliveryInfo.fullName}
-                    onChange={handleChange}
-                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
-                  />
-                  <input
-                    name="phone"
-                    placeholder="Phone Number"
-                    value={deliveryInfo.phone}
-                    onChange={handleChange}
-                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
-                  />
-                  <input
-                    name="addressLine1"
-                    placeholder="Street Address"
-                    value={deliveryInfo.addressLine1}
-                    onChange={handleChange}
-                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
-                  />
-                  <input
-                    name="addressLine2"
-                    placeholder="Apartment / Unit"
-                    value={deliveryInfo.addressLine2}
-                    onChange={handleChange}
-                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
-                  />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <input
-                      name="city"
-                      placeholder="City"
-                      value={deliveryInfo.city}
-                      onChange={handleChange}
-                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
-                    />
-                    <input
-                      name="zipCode"
-                      placeholder="ZIP Code"
-                      value={deliveryInfo.zipCode}
-                      onChange={handleChange}
-                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
-                    />
-                  </div>
-                  <textarea
-                    name="instructions"
-                    placeholder="Delivery Instructions"
-                    value={deliveryInfo.instructions}
-                    onChange={handleChange}
-                    className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
-                    rows={4}
-                  />
-                </div>
-              )}
+          {/* 8. Conditional UI Rendering */}
+          {clientSecret ? (
+            <div className="rounded-3xl border border-[#e7ddcc] bg-white p-6 shadow-sm">
+               <EmbeddedCheckoutProvider
+                  stripe={stripePromise}
+                  options={{ clientSecret }}
+                >
+                  <EmbeddedCheckout />
+                </EmbeddedCheckoutProvider>
             </div>
+          ) : (
+            <div className="grid gap-8 md:grid-cols-2">
+              {/* Delivery Information Column */}
+              <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
+                <h2 className="mb-2 text-3xl font-semibold text-[#1f4d36]">
+                  Delivery Information
+                </h2>
+                <p className="mb-5 text-sm text-[#666]">
+                  We prefilled what we already know from your account.
+                </p>
 
-            <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
-              <h2 className="mb-4 text-3xl font-semibold text-[#1f4d36]">
-                Order Summary
-              </h2>
-
-              <div className="space-y-4">
-                {cart.map((item) => (
-                  <div
-                    key={item.product.id}
-                    className="rounded-2xl border border-[#efe5d7] bg-[#fcfaf5] p-4"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium text-[#1f4d36]">
-                          {item.product.name}
-                        </p>
-                        <div className="mt-2 flex items-center gap-2 text-sm text-zinc-500">
-                          <button
-                            onClick={() => removeOne(item.product.id)}
-                            className="rounded-lg border border-[#d8d2c6] px-2 py-1 hover:bg-[#f1e7d8]"
-                          >
-                            -
-                          </button>
-                          <span>Qty: {item.quantity}</span>
-                          <button
-                            onClick={() => addToCart(item.product)}
-                            className="rounded-lg border border-[#d8d2c6] px-2 py-1 hover:bg-[#f1e7d8]"
-                          >
-                            +
-                          </button>
-                          <button
-                            onClick={() => removeFromCart(item.product.id)}
-                            className="ml-2 text-red-600 hover:text-red-700"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                      <p className="font-medium text-[#1f4d36]">
-                        ${(item.product.price * item.quantity).toFixed(2)}
-                      </p>
+                {loadingProfile ? (
+                  <p className="text-sm text-zinc-500">Loading profile...</p>
+                ) : (
+                  <div className="grid gap-4">
+                    <input
+                      name="fullName"
+                      placeholder="Full Name"
+                      value={deliveryInfo.fullName}
+                      onChange={handleChange}
+                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                    />
+                    <input
+                      name="phone"
+                      placeholder="Phone Number"
+                      value={deliveryInfo.phone}
+                      onChange={handleChange}
+                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                    />
+                    <input
+                      name="addressLine1"
+                      placeholder="Street Address"
+                      value={deliveryInfo.addressLine1}
+                      onChange={handleChange}
+                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                    />
+                    <input
+                      name="addressLine2"
+                      placeholder="Apartment / Unit"
+                      value={deliveryInfo.addressLine2}
+                      onChange={handleChange}
+                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <input
+                        name="city"
+                        placeholder="City"
+                        value={deliveryInfo.city}
+                        onChange={handleChange}
+                        className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                      />
+                      <input
+                        name="zipCode"
+                        placeholder="ZIP Code"
+                        value={deliveryInfo.zipCode}
+                        onChange={handleChange}
+                        className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                      />
                     </div>
+                    <textarea
+                      name="instructions"
+                      placeholder="Delivery Instructions"
+                      value={deliveryInfo.instructions}
+                      onChange={handleChange}
+                      className="rounded-xl border-[1.5px] border-[#ddd] bg-white/80 px-4 py-3 text-sm text-[#1a1a14] placeholder:text-[#bbb] outline-none transition-all duration-200 focus:border-[#4a7c59] focus:ring-2 focus:ring-[#4a7c59]/10"
+                      rows={4}
+                    />
                   </div>
-                ))}
+                )}
               </div>
 
-              <div className="mt-6 space-y-2 rounded-2xl bg-[#f8f2e8] p-5 text-sm">
-                <div className="flex justify-between">
-                  <span>Items</span>
-                  <span>{totalItems}</span>
+              {/* Order Summary Column */}
+              <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
+                <h2 className="mb-4 text-3xl font-semibold text-[#1f4d36]">
+                  Order Summary
+                </h2>
+
+                <div className="space-y-4">
+                  {cart.map((item) => (
+                    <div
+                      key={item.product.id}
+                      className="rounded-2xl border border-[#efe5d7] bg-[#fcfaf5] p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium text-[#1f4d36]">
+                            {item.product.name}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2 text-sm text-zinc-500">
+                            <button
+                              onClick={() => removeOne(item.product.id)}
+                              className="rounded-lg border border-[#d8d2c6] px-2 py-1 hover:bg-[#f1e7d8]"
+                            >
+                              -
+                            </button>
+                            <span>Qty: {item.quantity}</span>
+                            <button
+                              onClick={() => addToCart(item.product)}
+                              className="rounded-lg border border-[#d8d2c6] px-2 py-1 hover:bg-[#f1e7d8]"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() => removeFromCart(item.product.id)}
+                              className="ml-2 text-red-600 hover:text-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                        <p className="font-medium text-[#1f4d36]">
+                          ${(item.product.price * item.quantity).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between">
-                  <span>Total Weight</span>
-                  <span>{totalWeight.toFixed(2)} lbs</span>
+
+                <div className="mt-6 space-y-2 rounded-2xl bg-[#f8f2e8] p-5 text-sm">
+                  <div className="flex justify-between">
+                    <span>Items</span>
+                    <span>{totalItems}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Total Weight</span>
+                    <span>{totalWeight.toFixed(2)} lbs</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>${subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Delivery Fee</span>
+                    <span>${deliveryFee.toFixed(2)}</span>
+                  </div>
+                  <p className="text-xs text-zinc-500">
+                    Orders under {DELIVERY_THRESHOLD} lbs ship free. Orders at{" "}
+                    {DELIVERY_THRESHOLD} lbs or more have a $
+                    {DELIVERY_FEE.toFixed(2)} delivery fee.
+                  </p>
+                  <div className="flex justify-between">
+                    <span>Tax</span>
+                    <span>${tax.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-[#ddd] pt-3 text-lg font-bold text-[#1f4d36]">
+                    <span>Total</span>
+                    <span>${total.toFixed(2)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Delivery Fee</span>
-                  <span>${deliveryFee.toFixed(2)}</span>
-                </div>
-                <p className="text-xs text-zinc-500">
-                  Orders under {DELIVERY_THRESHOLD} lbs ship free. Orders at{" "}
-                  {DELIVERY_THRESHOLD} lbs or more have a $
-                  {DELIVERY_FEE.toFixed(2)} delivery fee.
-                </p>
-                <div className="flex justify-between">
-                  <span>Tax</span>
-                  <span>${tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between border-t border-[#ddd] pt-3 text-lg font-bold text-[#1f4d36]">
-                  <span>Total</span>
-                  <span>${total.toFixed(2)}</span>
-                </div>
+
+                {errorMessage && (
+                  <p className="mt-4 rounded-xl border border-[#f5c0c0] bg-[#fdeaea] px-4 py-3 text-sm text-red-600">
+                    {errorMessage}
+                  </p>
+                )}
+
+                <button
+                  onClick={handleProceedToPayment}
+                  disabled={loading || loadingProfile || cart.length === 0}
+                  className="mt-6 w-full rounded-xl bg-[#1f4d36] px-4 py-3 text-white transition hover:bg-[#2f644a] disabled:opacity-50"
+                >
+                  {loading ? "Processing..." : "Continue to Payment"}
+                </button>
               </div>
-
-              {errorMessage && (
-                <p className="mt-4 rounded-xl border border-[#f5c0c0] bg-[#fdeaea] px-4 py-3 text-sm text-red-600">
-                  {errorMessage}
-                </p>
-              )}
-
-              {successMessage && (
-                <p className="mt-4 rounded-xl border border-[#b7dec1] bg-[#edf8f0] px-4 py-3 text-sm text-green-700">
-                  {successMessage}
-                </p>
-              )}
-
-              <button
-                onClick={handlePlaceOrder}
-                disabled={loading || loadingProfile || cart.length === 0}
-                className="mt-6 w-full rounded-xl bg-[#1f4d36] px-4 py-3 text-white transition hover:bg-[#2f644a] disabled:opacity-50"
-              >
-                {loading ? "Processing..." : "Place Order"}
-              </button>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </CustomerRoute>

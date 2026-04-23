@@ -18,7 +18,7 @@ from flask_jwt_extended import (
 from sqlalchemy import text
 import os
 from datetime import timezone
-from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report, ReportMessage
+from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report, ReportMessage, Payment
 from database import db
 
 app = Flask(__name__)
@@ -459,6 +459,18 @@ def create_order():
     DELIVERY_FEE = 10
 
     data = request.get_json()
+    stripe_session_id = data.get("stripe_session_id")
+    payment_intent_id = data.get("payment_intent_id")
+
+    if stripe_session_id:
+        existing_payment = Payment.query.filter_by(
+            stripe_session_id=stripe_session_id
+        ).first()
+        if existing_payment and existing_payment.order_id:
+            return jsonify({
+                "message": "Order already created",
+                "order_id": existing_payment.order_id
+            }), 200
 
     delivery_info = data.get("deliveryInfo", {})
     items = data.get("items", [])
@@ -527,6 +539,20 @@ def create_order():
         for order_item in order_items:
             order_item.order_id = new_order.order_id
             db.session.add(order_item)
+
+        if stripe_session_id:
+            db.session.add(
+                Payment(
+                    order_id=new_order.order_id,
+                    payment_method="stripe",
+                    payment_status="paid",
+                    currency="USD",
+                    paid_amount=total_cost,
+                    paid_at=datetime.now(timezone.utc),
+                    stripe_session_id=stripe_session_id,
+                    payment_intent_id=payment_intent_id,
+                )
+            )
 
         db.session.commit()
 

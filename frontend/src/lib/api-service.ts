@@ -442,6 +442,8 @@ export interface PlaceOrderInput {
   tax: number;
   total: number;
   total_weight: number;
+  stripe_session_id?: string;
+  payment_intent_id?: string;
 }
 
 export interface PlaceOrderResponse {
