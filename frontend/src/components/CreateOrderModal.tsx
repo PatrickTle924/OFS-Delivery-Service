@@ -58,9 +58,11 @@ export default function CreateOrderModal({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
   useEffect(() => {
     if (open) {
-      fetch("http://localhost:5000/products")
+      fetch(`${API_BASE_URL}/products`)
         .then((r) => r.json())
         .then(setProducts)
         .catch(() => setProducts([]));
@@ -94,7 +96,7 @@ export default function CreateOrderModal({
     setCustomer(null);
     try {
       const res = await fetch(
-        `http://localhost:5000/profile?email=${encodeURIComponent(email)}`
+        `${API_BASE_URL}/profile?email=${encodeURIComponent(email)}`
       );
       if (!res.ok) {
         const d = await res.json();
@@ -160,7 +162,7 @@ export default function CreateOrderModal({
     setSubmitting(true);
     setSubmitError("");
     try {
-      const res = await fetch("http://localhost:5000/orders/create", {
+      const res = await fetch(`${API_BASE_URL}/orders/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

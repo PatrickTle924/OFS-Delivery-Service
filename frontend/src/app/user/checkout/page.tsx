@@ -134,9 +134,10 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
 
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
       const address = `${deliveryInfo.addressLine1}, ${deliveryInfo.city}, CA ${deliveryInfo.zipCode}`;
       const res = await fetch(
-        `http://localhost:5000/geocode?address=${encodeURIComponent(address)}`,
+        `${API_BASE_URL}/geocode?address=${encodeURIComponent(address)}`,
       );
 
       const data = await res.json();
