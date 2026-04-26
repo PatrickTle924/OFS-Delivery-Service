@@ -64,7 +64,7 @@ export default function InventoryPage() {
       category: "fruits",
       quantity: 0,
       weight: "",
-      price: 0,
+      price: undefined,
       reorderLevel: 10,
       image_url: "",
       image: undefined,
@@ -89,66 +89,138 @@ export default function InventoryPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
+
+    if (name === "weight") {
+      if (!/^\d*\.?\d*$/.test(value)) return;
+
+      setFormData((prev) => ({
+        ...prev,
+        weight: value,
+      }));
+      return;
+    }
+
+    if (name === "price") {
+      if (!/^\d*\.?\d*$/.test(value)) return;
+
+      setFormData((prev) => ({
+        ...prev,
+        price: value === "" ? undefined : Number(value),
+      }));
+      return;
+    }
+
+    if (name === "quantity") {
+      const num = Number(value);
+
+      if (value === "") {
+        setFormData((prev) => ({ ...prev, quantity: 0 }));
+        return;
+      }
+
+      if (num < 0) return;
+
+      setFormData((prev) => ({
+        ...prev,
+        quantity: num,
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
-      [name]:
-        name === "quantity" || name === "price" || name === "reorderLevel"
-          ? Number(value)
-          : value,
+      [name]: name === "reorderLevel" ? Number(value) : value,
     }));
   };
-
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    setFormData((prev) => ({
-      ...prev,
-      image: file,
-      image_url: reader.result as string, // preview only
-    }));
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormData((prev) => ({
+        ...prev,
+        image: file,
+        image_url: reader.result as string, // preview only
+      }));
+    };
+    reader.readAsDataURL(file);
   };
-  reader.readAsDataURL(file);
-};
 
   const handleSaveItem = async () => {
-  if (!formData.name?.trim()) {
-    alert("Please fill in the product name");
-    return;
-  }
-
-  try {
-    const data = new FormData();
-
-    // text fields
-    data.append("name", formData.name);
-    data.append("description", "");
-    data.append("category", formData.category || "fruits");
-    data.append("quantity", String(Number(formData.quantity ?? 0)));
-    data.append("weight", String(Number(formData.weight) || 0));
-    data.append("price", String(Number(formData.price ?? 0)));
-
-    // image (only if selected)
-    if (formData.image) {
-      data.append("image", formData.image);
+    if (!formData.name?.trim()) {
+      alert("Please fill in the product name");
+      return;
     }
 
-    if (editingItem) {
-      await updateProduct(editingItem.id, data);
-    } else {
-      await createProduct(data);
+    if (!formData.weight || formData.weight.trim() === "") {
+      alert("Please fill in the product weight");
+      return;
     }
 
-    await loadInventory();
-    handleCloseModal();
-  } catch (error) {
-    console.error("Failed to save item:", error);
-    alert("Failed to save item");
-  }
-};
+    if (formData.price === undefined) {
+      alert("Please fill in the product price");
+      return;
+    }
+
+    if (formData.quantity === undefined || formData.quantity < 0) {
+      alert("Quantity must be a positive number");
+      return;
+    }
+
+    const parsedWeight = Number(formData.weight);
+    const parsedPrice = Number(formData.price);
+
+    if (Number.isNaN(parsedWeight) || parsedWeight <= 0) {
+      alert("Weight must be a valid number greater than 0");
+      return;
+    }
+
+    if (parsedWeight > 100) {
+      alert("Weight cannot exceed 100");
+      return;
+    }
+
+    if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
+      alert("Price must be a valid number greater than 0");
+      return;
+    }
+
+    if (parsedPrice > 100) {
+      alert("Price cannot exceed 100");
+      return;
+    }
+
+    try {
+      const data = new FormData();
+
+      // text fields
+      data.append("name", formData.name);
+      data.append("description", "");
+      data.append("category", formData.category || "fruits");
+      data.append("quantity", String(Number(formData.quantity ?? 0)));
+      data.append("weight", String(parsedWeight));
+      data.append("price", String(parsedPrice));
+
+      // image (only if selected)
+      if (formData.image) {
+        data.append("image", formData.image);
+      }
+
+      if (editingItem) {
+        await updateProduct(editingItem.id, data);
+      } else {
+        await createProduct(data);
+      }
+
+      await loadInventory();
+      handleCloseModal();
+    } catch (error) {
+      console.error("Failed to save item:", error);
+      alert("Failed to save item");
+    }
+  };
 
   const handleDeleteItem = async (id: string) => {
     const confirmed = window.confirm(
@@ -355,7 +427,7 @@ export default function InventoryPage() {
                   </h2>
 
                   <div className="space-y-4">
-                        {/* product name */}
+                    {/* product name */}
                     <div>
                       <label className="block text-sm font-medium text-forest mb-2">
                         Product Name *
@@ -382,7 +454,7 @@ export default function InventoryPage() {
                         className="w-full px-4 py-2 rounded-lg border border-[#ddd] text-sm outline-none focus:border-sage focus:ring-2 focus:ring-sage/10"
                       />
                     </div>
-                      {/* Categories */}
+                    {/* Categories */}
                     <div>
                       <label className="block text-sm font-medium text-forest mb-2">
                         Category
@@ -402,7 +474,7 @@ export default function InventoryPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                          {/* product quantity */}
+                      {/* product quantity */}
                       <div>
                         <label className="block text-sm font-medium text-forest mb-2">
                           Quantity
@@ -413,14 +485,14 @@ export default function InventoryPage() {
                           value={formData.quantity || ""}
                           placeholder="e.g., 20"
                           onChange={handleFormChange}
+                          min="0"
                           className="w-full px-4 py-2 rounded-lg border border-[#ddd] text-sm outline-none focus:border-sage focus:ring-2 focus:ring-sage/10"
                         />
                       </div>
-                      
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                          {/* product weight */}
+                      {/* product weight */}
                       <div>
                         <label className="block text-sm font-medium text-forest mb-2">
                           Weight
@@ -434,7 +506,7 @@ export default function InventoryPage() {
                           className="w-full px-4 py-2 rounded-lg border border-[#ddd] text-sm outline-none focus:border-sage focus:ring-2 focus:ring-sage/10"
                         />
                       </div>
-                          {/* Product Price */}
+                      {/* Product Price */}
                       <div>
                         <label className="block text-sm font-medium text-forest mb-2">
                           Price
@@ -442,7 +514,7 @@ export default function InventoryPage() {
                         <input
                           type="number"
                           name="price"
-                          value={formData.price || ""}
+                          value={formData.price ?? ""}
                           onChange={handleFormChange}
                           placeholder="e.g., 2.99"
                           step="0.01"
@@ -450,7 +522,7 @@ export default function InventoryPage() {
                         />
                       </div>
                     </div>
-                      {/* last restocked */}
+                    {/* last restocked */}
                     <div>
                       <label className="block text-sm font-medium text-forest mb-2">
                         Last Restocked
@@ -464,7 +536,7 @@ export default function InventoryPage() {
                       />
                     </div>
                   </div>
-                        {/* final action buttons */}
+                  {/* final action buttons */}
                   <div className="flex gap-3 mt-8">
                     <button
                       onClick={handleCloseModal}

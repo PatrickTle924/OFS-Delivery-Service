@@ -78,6 +78,19 @@ function Field({
   );
 }
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function isValidEmail(email: string): boolean {
+  return email.includes("@");
+}
+
 // ── Page ──────────────────────────────────────────────────────────
 export default function LoginRegisterPage() {
   const router = useRouter();
@@ -101,21 +114,59 @@ export default function LoginRegisterPage() {
   if (user) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
     setError(null);
+
+    if (name === "firstName" || name === "lastName") {
+      const cleaned = value.replace(/[^A-Za-z\s'-]/g, "");
+      setForm((prev) => ({ ...prev, [name]: cleaned }));
+      return;
+    }
+
+    if (name === "phone") {
+      setForm((prev) => ({ ...prev, phone: formatPhone(value) }));
+      return;
+    }
+
+    if (name === "employeeId") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 5);
+      setForm((prev) => ({ ...prev, employeeId: digitsOnly }));
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!isValidEmail(form.email)) {
+      setError("Email must contain @.");
+      return;
+    }
+
+    if (mode === "register") {
+      if (form.password !== form.confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+
+      if (!form.firstName.trim() || !form.lastName.trim()) {
+        setError("First name and last name are required.");
+        return;
+      }
+
+      if (role === "employee" && form.employeeId.length !== 5) {
+        setError("Employee ID must be exactly 5 digits.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
       if (mode === "register") {
-        if (form.password !== form.confirmPassword) {
-          throw new Error("Passwords do not match.");
-        }
-
         const registrationPayload: RegisterInput =
           role === "customer"
             ? {
@@ -134,7 +185,7 @@ export default function LoginRegisterPage() {
                 phone: form.phone,
                 password: form.password,
                 role: "employee",
-                employeeId: form.employeeId,
+                employeeId: `EMP-${form.employeeId}`,
               };
 
         await registerUser(registrationPayload);
@@ -251,6 +302,7 @@ export default function LoginRegisterPage() {
             {(["login", "register"] as Mode[]).map((m) => (
               <button
                 key={m}
+                type="button"
                 onClick={() => switchMode(m)}
                 className={`flex-1 py-2.5 rounded-[10px] text-sm font-medium transition-all duration-200 ${
                   mode === m
@@ -272,6 +324,7 @@ export default function LoginRegisterPage() {
               ].map((r) => (
                 <button
                   key={r.value}
+                  type="button"
                   onClick={() => setRole(r.value)}
                   className={`flex-1 flex items-center justify-center py-2.5 px-4 rounded-xl border-[1.5px] text-sm font-medium transition-all duration-200 ${
                     role === r.value
@@ -299,107 +352,121 @@ export default function LoginRegisterPage() {
           )}
 
           {/* Fields */}
-          <div className="flex flex-col gap-4 mb-5">
-            {mode === "register" && (
-              <div className="grid grid-cols-2 gap-3">
+          <form onSubmit={handleSubmit}>
+            <div className="flex flex-col gap-4 mb-5">
+              {mode === "register" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field
+                    label="First Name"
+                    name="firstName"
+                    type="text"
+                    placeholder="Jane"
+                    value={form.firstName}
+                    onChange={handleChange}
+                  />
+                  <Field
+                    label="Last Name"
+                    name="lastName"
+                    type="text"
+                    placeholder="Doe"
+                    value={form.lastName}
+                    onChange={handleChange}
+                  />
+                </div>
+              )}
+
+              <Field
+                label="Email Address"
+                name="email"
+                type="email"
+                placeholder="you@example.com"
+                value={form.email}
+                onChange={handleChange}
+              />
+
+              {mode === "register" && (
                 <Field
-                  label="First Name"
-                  name="firstName"
-                  type="text"
-                  placeholder="Jane"
-                  value={form.firstName}
+                  label="Phone Number"
+                  name="phone"
+                  type="tel"
+                  placeholder="(408) 555-0100"
+                  value={form.phone}
                   onChange={handleChange}
                 />
+              )}
+
+              {mode === "register" && role === "customer" && (
                 <Field
-                  label="Last Name"
-                  name="lastName"
+                  label="Delivery Address"
+                  name="address"
                   type="text"
-                  placeholder="Doe"
-                  value={form.lastName}
+                  placeholder="123 Main St, San Jose, CA"
+                  value={form.address}
                   onChange={handleChange}
                 />
-              </div>
-            )}
+              )}
 
-            <Field
-              label="Email Address"
-              name="email"
-              type="email"
-              placeholder="you@example.com"
-              value={form.email}
-              onChange={handleChange}
-            />
+              {mode === "register" && role === "employee" && (
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="employeeId"
+                    className="text-xs font-medium text-[#444] tracking-wide"
+                  >
+                    Employee ID
+                  </label>
+                  <div className="flex items-center px-4 py-3 rounded-xl border-[1.5px] border-[#ddd] bg-white/80 text-sm text-[#1a1a14] outline-none focus-within:border-sage focus-within:ring-2 focus-within:ring-sage/10 transition-all duration-200 backdrop-blur-sm">
+                    <span className="mr-1 text-[#666]">EMP-</span>
+                    <input
+                      id="employeeId"
+                      name="employeeId"
+                      type="text"
+                      placeholder="12345"
+                      value={form.employeeId}
+                      onChange={handleChange}
+                      className="w-full bg-transparent outline-none placeholder:text-[#bbb]"
+                    />
+                  </div>
+                </div>
+              )}
 
-            {mode === "register" && (
               <Field
-                label="Phone Number"
-                name="phone"
-                type="tel"
-                placeholder="+1 (408) 555-0100"
-                value={form.phone}
-                onChange={handleChange}
-              />
-            )}
-
-            {mode === "register" && role === "customer" && (
-              <Field
-                label="Delivery Address"
-                name="address"
-                type="text"
-                placeholder="123 Main St, San Jose, CA"
-                value={form.address}
-                onChange={handleChange}
-              />
-            )}
-
-            {mode === "register" && role === "employee" && (
-              <Field
-                label="Employee ID"
-                name="employeeId"
-                type="text"
-                placeholder="EMP-12345"
-                value={form.employeeId}
-                onChange={handleChange}
-              />
-            )}
-
-            <Field
-              label="Password"
-              name="password"
-              type="password"
-              placeholder={
-                mode === "register"
-                  ? "Min. 10 characters"
-                  : "Enter your password"
-              }
-              value={form.password}
-              onChange={handleChange}
-            />
-
-            {mode === "register" && (
-              <Field
-                label="Confirm Password"
-                name="confirmPassword"
+                label="Password"
+                name="password"
                 type="password"
-                placeholder="Repeat password"
-                value={form.confirmPassword}
+                placeholder={
+                  mode === "register"
+                    ? "Min. 10 characters"
+                    : "Enter your password"
+                }
+                value={form.password}
                 onChange={handleChange}
               />
-            )}
-          </div>
 
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-forest text-cream font-medium py-3.5 rounded-xl hover:bg-sage disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-base mb-5 shadow-lg shadow-forest/20"
-          >
-            {loading
-              ? "Processing..."
-              : mode === "login"
-                ? "Sign In →"
-                : "Create Account →"}
-          </button>
+              {mode === "register" && (
+                <Field
+                  label="Confirm Password"
+                  name="confirmPassword"
+                  type="password"
+                  placeholder="Repeat password"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                />
+              )}
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-forest text-cream font-medium py-3.5 rounded-xl hover:bg-sage disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-base mb-5 shadow-lg shadow-forest/20"
+            >
+              {loading
+                ? "Processing..."
+                : mode === "login"
+                  ? "Sign In →"
+                  : "Create Account →"}
+            </button>
+          </form>
 
           {/* Divider */}
           <div className="flex items-center gap-3 mb-5">
@@ -414,6 +481,7 @@ export default function LoginRegisterPage() {
               <>
                 Don&apos;t have an account?{" "}
                 <button
+                  type="button"
                   onClick={() => switchMode("register")}
                   className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
                 >
@@ -424,6 +492,7 @@ export default function LoginRegisterPage() {
               <>
                 Already have an account?{" "}
                 <button
+                  type="button"
                   onClick={() => switchMode("login")}
                   className="text-sage font-medium underline underline-offset-2 hover:text-forest transition-colors"
                 >

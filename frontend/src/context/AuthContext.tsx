@@ -30,25 +30,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem("user");
+    const decodeJwtExpiry = (token: string): number | null => {
+      try {
+        const payloadPart = token.split(".")[1];
+        if (!payloadPart) return null;
 
-      if (storedUser) {
-        setUser(JSON.parse(storedUser) as AuthUser);
-      } else {
-        setUser(null);
+        const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(atob(base64)) as { exp?: number };
+
+        return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+      } catch {
+        return null;
       }
-    } catch {
+    };
+
+    const clearAuth = () => {
+      localStorage.removeItem("token");
       localStorage.removeItem("user");
       setUser(null);
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    const hydrateAuth = () => {
+      try {
+        const token = localStorage.getItem("token");
+        const storedUser = localStorage.getItem("user");
+
+        if (!token || !storedUser) {
+          clearAuth();
+          return;
+        }
+
+        const expiry = decodeJwtExpiry(token);
+        if (expiry !== null && expiry <= Date.now()) {
+          clearAuth();
+          return;
+        }
+
+        setUser(JSON.parse(storedUser) as AuthUser);
+      } catch {
+        clearAuth();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const onAuthChanged = () => {
+      hydrateAuth();
+    };
+
+    hydrateAuth();
+    window.addEventListener("auth-changed", onAuthChanged);
+
+    return () => {
+      window.removeEventListener("auth-changed", onAuthChanged);
+    };
   }, []);
 
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    window.dispatchEvent(new Event("auth-changed"));
     setUser(null);
   };
 

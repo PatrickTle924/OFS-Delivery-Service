@@ -4,6 +4,16 @@ import { Product } from "@/types/shop";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
+const clearClientAuth = () => {
+  if (typeof window === "undefined") return;
+
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  window.dispatchEvent(new Event("auth-changed"));
+};
+
+const isAuthFailure = (status: number) => status === 401 || status === 422;
+
 export interface AuthResponse {
   message: string;
   user?: {
@@ -199,6 +209,11 @@ export const fetchProducts = async (): Promise<Product[]> => {
 
   const data = await response.json();
 
+  if (isAuthFailure(response.status)) {
+    clearClientAuth();
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
   if (!response.ok) {
     throw new Error(data.error || "Failed to fetch products");
   }
@@ -259,6 +274,11 @@ export const fetchUserProfile = async (): Promise<ProfileResponse> => {
   });
 
   const data = await response.json();
+
+  if (isAuthFailure(response.status)) {
+    clearClientAuth();
+    throw new Error("Your session has expired. Please sign in again.");
+  }
 
   if (!response.ok) {
     throw new Error(data.error || "Failed to fetch profile");
@@ -422,6 +442,8 @@ export interface PlaceOrderInput {
   tax: number;
   total: number;
   total_weight: number;
+  stripe_session_id?: string;
+  payment_intent_id?: string;
 }
 
 export interface PlaceOrderResponse {
