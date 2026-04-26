@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-// 1. Import Stripe dependencies
 import { loadStripe } from "@stripe/stripe-js";
-import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
+import {
+  EmbeddedCheckoutProvider,
+  EmbeddedCheckout,
+} from "@stripe/react-stripe-js";
 
 import Navbar from "@/components/Navbar";
 import CustomerRoute from "@/components/CustomerRoute";
 import { useCart } from "@/context/CartContext";
 import { fetchUserProfile } from "@/lib/api-service";
-// 2. Import your new Server Action (Adjust path as needed)
-import { createCheckoutSession } from "@/app/actions/stripe"; 
+import { createCheckoutSession } from "@/app/actions/stripe";
 import { DELIVERY_FEE, DELIVERY_THRESHOLD } from "@/types/shop";
 
 const PENDING_ORDER_KEY_PREFIX = "ofs-pending-order-";
 
-// 3. Initialize Stripe exactly once outside the component render cycle
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
+const stripePromise = loadStripe(
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string,
+);
 
 type DeliveryInfo = {
   fullName: string;
@@ -28,16 +30,22 @@ type DeliveryInfo = {
   instructions: string;
 };
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function isValidPhone(phone: string): boolean {
+  return /^\(\d{3}\) \d{3}-\d{4}$/.test(phone);
+}
+
 export default function CheckoutPage() {
-  const {
-    cart,
-    totalItems,
-    totalPrice,
-    addToCart,
-    removeOne,
-    removeFromCart,
-    // Note: We don't clearCart() here anymore; rely on the webhook or success page.
-  } = useCart();
+  const { cart, totalItems, totalPrice, addToCart, removeOne, removeFromCart } =
+    useCart();
 
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     fullName: "",
@@ -52,8 +60,6 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  
-  // 4. State to track the Stripe Client Secret
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,9 +74,9 @@ export default function CheckoutPage() {
         setDeliveryInfo((prev) => ({
           ...prev,
           fullName,
-          phone: profile.phone || "",
+          phone: profile.phone ? formatPhone(profile.phone) : "",
           addressLine1: address,
-          city: city,
+          city,
         }));
       } catch (error) {
         console.error("Failed to load profile for checkout:", error);
@@ -105,13 +111,68 @@ export default function CheckoutPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
     const { name, value } = e.target;
+
+    if (name === "phone") {
+      setDeliveryInfo((prev) => ({
+        ...prev,
+        phone: formatPhone(value),
+      }));
+      return;
+    }
+
+    if (name === "zipCode") {
+      setDeliveryInfo((prev) => ({
+        ...prev,
+        zipCode: value.replace(/\D/g, "").slice(0, 5),
+      }));
+      return;
+    }
+
+    if (name === "addressLine1") {
+      const cleaned = value
+        .replace(/[^A-Za-z0-9\s.,#/'()-]/g, "")
+        .slice(0, 100);
+      setDeliveryInfo((prev) => ({
+        ...prev,
+        addressLine1: cleaned,
+      }));
+      return;
+    }
+
+    if (name === "addressLine2") {
+      const cleaned = value
+        .replace(/[^A-Za-z0-9\s.,#/'()-]/g, "")
+        .slice(0, 100);
+      setDeliveryInfo((prev) => ({
+        ...prev,
+        addressLine2: cleaned,
+      }));
+      return;
+    }
+
+    if (name === "city") {
+      const cleaned = value.replace(/[^A-Za-z\s.'-]/g, "").slice(0, 50);
+      setDeliveryInfo((prev) => ({
+        ...prev,
+        city: cleaned,
+      }));
+      return;
+    }
+
+    if (name === "instructions") {
+      setDeliveryInfo((prev) => ({
+        ...prev,
+        instructions: value.slice(0, 250),
+      }));
+      return;
+    }
+
     setDeliveryInfo((prev) => ({
       ...prev,
       [name]: value,
     }));
   }
 
-  // 5. Refactored function to initialize Stripe instead of placing the order directly
   async function handleProceedToPayment() {
     setErrorMessage("");
 
@@ -131,6 +192,36 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (!isValidPhone(deliveryInfo.phone)) {
+      setErrorMessage("Phone number must be in the format (408) 555-0100.");
+      return;
+    }
+
+    if (!/^\d{5}$/.test(deliveryInfo.zipCode)) {
+      setErrorMessage("ZIP code must be exactly 5 digits.");
+      return;
+    }
+
+    if (
+      !/^[A-Za-z0-9\s.,#/'()-]{1,100}$/.test(deliveryInfo.addressLine1.trim())
+    ) {
+      setErrorMessage("Street address contains invalid characters.");
+      return;
+    }
+
+    if (
+      deliveryInfo.addressLine2.trim() &&
+      !/^[A-Za-z0-9\s.,#/'()-]{1,100}$/.test(deliveryInfo.addressLine2.trim())
+    ) {
+      setErrorMessage("Apartment / Unit contains invalid characters.");
+      return;
+    }
+
+    if (!/^[A-Za-z\s.'-]{1,50}$/.test(deliveryInfo.city.trim())) {
+      setErrorMessage("City contains invalid characters.");
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -141,13 +232,17 @@ export default function CheckoutPage() {
       );
 
       const data = await res.json();
-      const lat = data.lat;
-      const lng = data.lng;
 
-      if (!res.ok) throw new Error(data.error || "Geocoding failed");
+      if (!res.ok) {
+        throw new Error(data.error || "Geocoding failed");
+      }
+
       if (typeof data.lat !== "number" || typeof data.lng !== "number") {
         throw new Error("Invalid geocoding response");
       }
+
+      const lat = data.lat;
+      const lng = data.lng;
 
       const payload = {
         deliveryInfo,
@@ -169,9 +264,8 @@ export default function CheckoutPage() {
         delivery_lng: lng,
       };
 
-      // 6. Call the Server Action
       const response = await createCheckoutSession(payload);
-      
+
       if (!response || !response.clientSecret || !response.sessionId) {
         throw new Error("Failed to initialize payment gateway.");
       }
@@ -183,9 +277,7 @@ export default function CheckoutPage() {
         );
       }
 
-      // 7. Set the secret to reveal the Embedded Checkout component
       setClientSecret(response.clientSecret);
-
     } catch (error) {
       console.error(error);
       setErrorMessage(
@@ -215,25 +307,23 @@ export default function CheckoutPage() {
               </span>
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-[#666]">
-              {clientSecret 
-                ? "Complete your payment securely below." 
+              {clientSecret
+                ? "Complete your payment securely below."
                 : "Review your items, confirm your delivery information, and proceed to payment."}
             </p>
           </div>
 
-          {/* 8. Conditional UI Rendering */}
           {clientSecret ? (
             <div className="rounded-3xl border border-[#e7ddcc] bg-white p-6 shadow-sm">
-               <EmbeddedCheckoutProvider
-                  stripe={stripePromise}
-                  options={{ clientSecret }}
-                >
-                  <EmbeddedCheckout />
-                </EmbeddedCheckoutProvider>
+              <EmbeddedCheckoutProvider
+                stripe={stripePromise}
+                options={{ clientSecret }}
+              >
+                <EmbeddedCheckout />
+              </EmbeddedCheckoutProvider>
             </div>
           ) : (
             <div className="grid gap-8 md:grid-cols-2">
-              {/* Delivery Information Column */}
               <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
                 <h2 className="mb-2 text-3xl font-semibold text-[#1f4d36]">
                   Delivery Information
@@ -302,7 +392,6 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Order Summary Column */}
               <div className="rounded-3xl border border-[#e7ddcc] bg-white/80 p-6 shadow-sm">
                 <h2 className="mb-4 text-3xl font-semibold text-[#1f4d36]">
                   Order Summary

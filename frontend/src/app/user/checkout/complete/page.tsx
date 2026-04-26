@@ -17,7 +17,9 @@ function CheckoutCompleteContent() {
   const searchParams = useSearchParams();
   const { clearCart, totalItems } = useCart();
 
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "success" | "error">(
+    "loading",
+  );
   const [message, setMessage] = useState("Finalizing your order...");
   const [orderId, setOrderId] = useState<number | null>(null);
 
@@ -126,7 +128,9 @@ function CheckoutCompleteContent() {
           {status === "success" && (
             <div className="mt-5 space-y-3">
               {orderId ? (
-                <p className="text-sm text-[#1f4d36]">Your order number is #{orderId}.</p>
+                <p className="text-sm text-[#1f4d36]">
+                  Your order number is #{orderId}.
+                </p>
               ) : null}
               <button
                 onClick={() => router.push("/user/orders")}
@@ -162,7 +166,9 @@ export default function CheckoutCompletePage() {
             <Navbar alwaysFrosted cartItemCount={0} />
             <div className="mx-auto max-w-3xl pt-24">
               <div className="rounded-3xl border border-[#e7ddcc] bg-white p-8 shadow-sm">
-                <p className="text-sm text-zinc-500">Loading checkout result...</p>
+                <p className="text-sm text-zinc-500">
+                  Loading checkout result...
+                </p>
               </div>
             </div>
           </div>
