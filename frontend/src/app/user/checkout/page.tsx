@@ -225,14 +225,10 @@ export default function CheckoutPage() {
     try {
       setLoading(true);
 
-      const params = new URLSearchParams({
-        addressLine1: deliveryInfo.addressLine1.trim(),
-        city: deliveryInfo.city.trim(),
-        zipCode: deliveryInfo.zipCode.trim(),
-      });
-
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const address = `${deliveryInfo.addressLine1}, ${deliveryInfo.city}, CA ${deliveryInfo.zipCode}`;
       const res = await fetch(
-        `http://localhost:5000/geocode?${params.toString()}`,
+        `${API_BASE_URL}/geocode?address=${encodeURIComponent(address)}`,
       );
 
       const data = await res.json();

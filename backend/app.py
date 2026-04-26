@@ -1857,7 +1857,9 @@ def cancel_route(trip_id):
     return jsonify({"message": "Route cancelled successfully"}), 200
 
 
-# for local development without Docker
+# for railway deployment
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-
+    # Railway assigns a dynamic PORT, so we must catch it, defaulting to 5000 locally
+    port = int(os.environ.get("PORT", 5000))
+    # host="0.0.0.0" is the magic key that opens the container to the internet
+    app.run(host="0.0.0.0", port=port)

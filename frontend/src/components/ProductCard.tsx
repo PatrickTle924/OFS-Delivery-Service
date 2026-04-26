@@ -29,7 +29,7 @@ interface ProductCardProps {
   onAdd: () => void;
   onRemove: () => void;
 }
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 export default function ProductCard({ product, quantity, onAdd, onRemove }: ProductCardProps) {
   const outOfStock = product.stock === 0;
   //const catStyle = CATEGORY_STYLES[product.category];
