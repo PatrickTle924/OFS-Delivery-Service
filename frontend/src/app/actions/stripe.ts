@@ -4,7 +4,7 @@ import Stripe from "stripe";
 import { headers } from "next/headers";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2026-03-25.dahlia", // Always pin your version
+  apiVersion: "2026-04-22.dahlia", // Always pin your version
 });
 
 type CheckoutLineItem = {
@@ -55,7 +55,7 @@ export async function createCheckoutSession(payload: any) {
     });
   }
 
-  // 1. We cast the configuration to 'any' or the specific Stripe type 
+  // 1. We cast the configuration to 'any' or the specific Stripe type
   // to bypass the literal string mismatch
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     ui_mode: "embedded_page" as any, // The 'any' cast here is the escape hatch
@@ -93,6 +93,6 @@ export async function verifyCheckoutSession(sessionId: string) {
     paymentIntentId:
       typeof session.payment_intent === "string"
         ? session.payment_intent
-        : session.payment_intent?.id ?? null,
+        : (session.payment_intent?.id ?? null),
   };
 }

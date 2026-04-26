@@ -5,7 +5,7 @@ from functools import wraps
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 import uuid
-
+import re
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import (
@@ -62,6 +62,13 @@ def role_required(*allowed_roles):
 def get_current_user():
     user_id = get_jwt_identity()
     return User.query.get(user_id)
+
+ALLOWED_ZIPS = {
+    "95110", "95111", "95112", "95113", "95116", "95117", "95118",
+    "95120", "95121", "95122", "95123", "95124", "95125", "95126",
+    "95127", "95128", "95129", "95130", "95131", "95132", "95133",
+    "95134", "95135", "95136", "95138", "95139", "95140", "95148"
+}
 
 MOCK_PRODUCTS = [
     {
@@ -210,6 +217,77 @@ MOCK_PRODUCTS = [
     },
 ]
 
+
+
+NAME_REGEX = re.compile(r"^[A-Za-z][A-Za-z\s'-]*$")
+EMAIL_REGEX = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+PHONE_REGEX = re.compile(r"^\(\d{3}\) \d{3}-\d{4}$")
+ADDRESS_REGEX = re.compile(r"^[A-Za-z0-9\s.,#/-]+$")
+EMPLOYEE_ID_REGEX = re.compile(r"^EMP-\d{5}$")
+
+
+def validate_registration_payload(data):
+    first_name = (data.get("firstName") or "").strip()
+    last_name = (data.get("lastName") or "").strip()
+    email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    password = data.get("password") or ""
+    role = (data.get("role") or "").strip()
+    delivery_address = (data.get("deliveryAddress") or "").strip()
+    employee_id = (data.get("employeeId") or "").strip()
+
+    if not first_name:
+        return "First name is required."
+    if len(first_name) > 50:
+        return "First name must be 50 characters or fewer."
+    if not NAME_REGEX.fullmatch(first_name):
+        return "First name contains invalid characters."
+
+    if not last_name:
+        return "Last name is required."
+    if len(last_name) > 50:
+        return "Last name must be 50 characters or fewer."
+    if not NAME_REGEX.fullmatch(last_name):
+        return "Last name contains invalid characters."
+
+    if not email:
+        return "Email is required."
+    if len(email) > 120:
+        return "Email must be 120 characters or fewer."
+    if not EMAIL_REGEX.fullmatch(email):
+        return "Email is invalid."
+
+    if not phone:
+        return "Phone number is required."
+    if len(phone) > 20:
+        return "Phone number is too long."
+    if not PHONE_REGEX.fullmatch(phone):
+        return "Phone number must be in the format (123) 456-7890."
+
+    if not password:
+        return "Password is required."
+    if len(password) < 10:
+        return "Password must be at least 10 characters long."
+
+    if role not in {"customer", "employee"}:
+        return "Role must be customer or employee."
+
+    if role == "customer":
+        if not delivery_address:
+            return "Delivery address is required."
+        if len(delivery_address) > 255:
+            return "Delivery address must be 255 characters or fewer."
+        if not ADDRESS_REGEX.fullmatch(delivery_address):
+            return "Delivery address contains invalid characters."
+
+    if role == "employee":
+        if not employee_id:
+            return "Employee ID is required."
+        if not EMPLOYEE_ID_REGEX.fullmatch(employee_id):
+            return "Employee ID must match EMP-12345."
+
+    return None
+
 @app.route("/change-password", methods=["POST"])
 @jwt_required()
 def change_password():
@@ -308,43 +386,54 @@ WAREHOUSE = {
     "coordinates": [-121.8900, 37.3350]
 }
 
-@app.route('/register', methods=['POST'])
+@app.route("/register", methods=["POST"])
 def register():
-    data = request.get_json()
-    
-    # Check if User exists
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({"error": "Email already registered"}), 400
-    
-    # Convert string role from JSON to Python Enum
-    try:
-        requested_role = UserRole(data['role'].lower())
-    except (ValueError, KeyError):
-        return jsonify({"error": "Invalid role"}), 400
+    data = request.get_json() or {}
 
-    new_user = User(
-        first_name=data['firstName'],
-        last_name=data['lastName'],
-        email=data['email'],
-        phone_number=data['phone'],
-        role = requested_role
+    validation_error = validate_registration_payload(data)
+    if validation_error:
+        return jsonify({"error": validation_error}), 400
+
+    email = data["email"].strip()
+
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({"error": "An account with this email already exists."}), 409
+
+    user = User(
+        first_name=data["firstName"].strip(),
+        last_name=data["lastName"].strip(),
+        email=email,
+        phone_number=data["phone"].strip(),
+        role=UserRole.CUSTOMER if data["role"] == "customer" else UserRole.EMPLOYEE,
     )
-    new_user.set_password(data['password'])
-    
-    db.session.add(new_user)
+    user.set_password(data["password"])
+    db.session.add(user)
     db.session.flush()
 
-    # create + assign the actual profile
-    if requested_role == UserRole.CUSTOMER:
-        profile = CustomerProfile(user_id=new_user.id, delivery_address=data.get('deliveryAddress', ''))
+    if data["role"] == "customer":
+        profile = CustomerProfile(
+            user_id=user.id,
+            delivery_address=data["deliveryAddress"].strip(),
+        )
         db.session.add(profile)
-    elif requested_role == UserRole.EMPLOYEE:
-        profile = EmployeeProfile(user_id=new_user.id, employee_id=data.get('employeeId', ''))
+    else:
+        existing_employee = EmployeeProfile.query.filter_by(
+            employee_id=data["employeeId"].strip()
+        ).first()
+        if existing_employee:
+            db.session.rollback()
+            return jsonify({"error": "Employee ID already exists."}), 409
+
+        profile = EmployeeProfile(
+            user_id=user.id,
+            employee_id=data["employeeId"].strip(),
+        )
         db.session.add(profile)
 
     db.session.commit()
-    
-    return jsonify({"message": "User created successfully"}), 201
+
+    return jsonify({"message": "Registration successful."}), 201
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -404,51 +493,64 @@ def get_orders():
         for o in orders
     ])
 
+
 @app.route("/geocode")
 def geocode():
-    address = request.args.get("address")
+    address_line1 = (request.args.get("addressLine1") or "").strip()
+    city = (request.args.get("city") or "").strip()
+    zip_code = (request.args.get("zipCode") or "").strip()
 
-    if not address:
-        return jsonify({"error": "Address required"}), 400
+    if not address_line1 or not city or not zip_code:
+        return jsonify({"error": "Address line, city, and ZIP are required"}), 400
 
-    access_token = os.getenv("MAPBOX_ACCESS_TOKEN")
-    if not access_token:
-        return jsonify({"error": "MAPBOX_ACCESS_TOKEN is not configured"}), 500
+    if city.lower() != "san jose":
+        return jsonify({"error": "We currently only deliver in San Jose"}), 400
 
-    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{address}.json"
+    if not zip_code.isdigit() or len(zip_code) != 5:
+        return jsonify({"error": "ZIP code must be 5 digits"}), 400
 
+    if zip_code not in ALLOWED_ZIPS:
+        return jsonify({"error": "We do not deliver to that ZIP code"}), 400
+
+    q = f"{address_line1}, {city}, CA {zip_code}"
+
+    url = "https://api.mapbox.com/search/geocode/v6/forward"
     params = {
-        "access_token": access_token,
-        "limit": 1
+        "q": q,
+        "access_token": os.getenv("MAPBOX_ACCESS_TOKEN"),
+        "limit": 1,
+        "country": "US",
+        "region": "CA",
+        "types": "address",
     }
 
-    try:
-        res = requests.get(url, params=params, timeout=15)
-        data = res.json()
-    except requests.RequestException:
-        return jsonify({"error": "Failed to contact geocoding service"}), 502
-    except ValueError:
-        return jsonify({"error": "Invalid geocoding response"}), 502
+    res = requests.get(url, params=params, timeout=10)
 
-    if res.status_code != 200:
-        return jsonify(
-            {
-                "error": "Geocoding request failed",
-                "details": data.get("message") if isinstance(data, dict) else None,
-            }
-        ), 502
+    if not res.ok:
+        return jsonify({"error": "Geocoding provider error"}), 502
 
-    features = data.get("features") if isinstance(data, dict) else None
+    data = res.json()
+    features = data.get("features", [])
     if not features:
         return jsonify({"error": "Address not found"}), 404
 
     feature = features[0]
-    lng, lat = feature["center"]
+
+    coords = feature.get("geometry", {}).get("coordinates")
+    if not coords or len(coords) != 2:
+        return jsonify({"error": "Invalid geocoding response"}), 502
+
+    lng, lat = coords
+
+    full_address = (feature.get("properties", {}) or {}).get("full_address") or feature.get("place_name", "")
+
+    if "san jose" not in full_address.lower():
+        return jsonify({"error": "Address is outside our delivery area"}), 400
 
     return jsonify({
         "lat": lat,
         "lng": lng,
-        "place_name": feature["place_name"]
+        "place_name": full_address,
     })
 
 
@@ -951,7 +1053,7 @@ def start_trip(trip_id):
 
 from math import radians, sin, cos, sqrt, atan2
 
-def is_near(lng1, lat1, lng2, lat2, threshold_meters=15):
+def is_near(lng1, lat1, lng2, lat2, threshold_meters=100):
     R = 6371000  # Earth radius in meters
 
     lat1_r = radians(lat1)
