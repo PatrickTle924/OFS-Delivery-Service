@@ -11,6 +11,7 @@ function normalizeStatus(status: string): OrderData["status"] {
   const value = status.trim().toLowerCase();
 
   if (value === "pending") return "pending";
+  if (value === "assigned") return "in progress";
   if (value === "delivered") return "delivered";
   if (value === "cancelled") return "cancelled";
   if (value === "in progress" || value === "in_progress") return "in progress";
