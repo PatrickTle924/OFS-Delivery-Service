@@ -9,10 +9,12 @@ export default function EmployeeRoute({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (loading) return;
+
     if (!user) {
       router.replace("/login-register");
       return;
@@ -21,7 +23,9 @@ export default function EmployeeRoute({
     if (user.role !== "employee") {
       router.replace("/");
     }
-  }, [user, router]);
+  }, [user, loading, router]);
+
+  if (loading) return null;
 
   if (!user || user.role !== "employee") return null;
 
