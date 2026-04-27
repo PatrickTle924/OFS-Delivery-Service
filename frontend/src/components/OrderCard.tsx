@@ -85,7 +85,7 @@ export default function OrderCard({ order }: { order: OrderData }) {
           </p>
         </div>
 
-        {/* Middle: Star Rating */}
+        {/* Middle: Star Rating
         <div className="flex flex-col gap-2">
           <p className="text-[10px] font-medium text-forest/40 uppercase tracking-widest">Rate your experience</p>
           <div className="flex gap-1">
@@ -104,7 +104,8 @@ export default function OrderCard({ order }: { order: OrderData }) {
             ))}
           </div>
         </div>
-
+        */}
+        
         {/* Right: Actions */}
         <div className="flex items-center gap-2 shrink-0">
           <button
