@@ -38,11 +38,11 @@ export interface ProfileResponse {
 }
 
 export interface UpdateProfileInput {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  deliveryAddress: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  deliveryAddress?: string;
 }
 
 export interface ChangePasswordInput {

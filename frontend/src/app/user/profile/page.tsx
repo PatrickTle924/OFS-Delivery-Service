@@ -174,6 +174,7 @@ interface EditFieldProps {
   type?: string;
   icon: React.ReactNode;
   editing: boolean;
+  readOnly?: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -184,6 +185,7 @@ function EditField({
   type = "text",
   icon,
   editing,
+  readOnly = false,
   onChange,
 }: EditFieldProps) {
   return (
@@ -197,6 +199,7 @@ function EditField({
           name={name}
           type={type}
           value={value}
+          readOnly={readOnly}
           onChange={onChange}
           className="px-4 py-2.5 rounded-xl border-[1.5px] border-sage/40 bg-white text-sm text-forest outline-none focus:border-sage focus:ring-2 focus:ring-sage/10 transition-all duration-200"
         />
@@ -270,13 +273,35 @@ export default function ProfilePage() {
     try {
       setError(null);
 
-      const updatedProfile = await updateUserProfile({
-        firstName: draft.firstName.trim(),
-        lastName: draft.lastName.trim(),
-        email: draft.email.trim(),
-        phone: draft.phone.trim(),
-        deliveryAddress: draft.address.trim(),
-      });
+      const payload: {
+        firstName?: string;
+        lastName?: string;
+        phone?: string;
+        deliveryAddress?: string;
+      } = {};
+
+      if (draft.firstName.trim() !== profile.firstName) {
+        payload.firstName = draft.firstName.trim();
+      }
+
+      if (draft.lastName.trim() !== profile.lastName) {
+        payload.lastName = draft.lastName.trim();
+      }
+
+      if (draft.phone.trim() !== profile.phone) {
+        payload.phone = draft.phone.trim();
+      }
+
+      if (draft.address.trim() !== profile.address) {
+        payload.deliveryAddress = draft.address.trim();
+      }
+
+      if (Object.keys(payload).length === 0) {
+        setEditing(false);
+        return;
+      }
+
+      const updatedProfile = await updateUserProfile(payload);
 
       const formattedProfile: UserProfile = {
         firstName: updatedProfile.firstName,
@@ -516,6 +541,7 @@ export default function ProfilePage() {
                   value={editing ? draft.email : profile.email}
                   icon={<IconMail />}
                   editing={editing}
+                  readOnly
                   onChange={handleChange}
                 />
                 <EditField
