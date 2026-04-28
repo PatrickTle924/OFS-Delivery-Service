@@ -37,6 +37,14 @@ export interface ProfileResponse {
   role: UserRole;
 }
 
+export interface UpdateProfileInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  deliveryAddress: string;
+}
+
 export interface ChangePasswordInput {
   currentPassword: string;
   newPassword: string;
@@ -285,6 +293,29 @@ export const fetchUserProfile = async (): Promise<ProfileResponse> => {
   }
 
   return data;
+};
+
+export const updateUserProfile = async (
+  data: UpdateProfileInput,
+): Promise<ProfileResponse> => {
+  const response = await fetch(`${API_BASE_URL}/profile`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+
+  const result = await response.json();
+
+  if (isAuthFailure(response.status)) {
+    clearClientAuth();
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(result.error || "Failed to update profile");
+  }
+
+  return result;
 };
 
 export const fetchOrderHistory = async (): Promise<OrderHistoryItem[]> => {

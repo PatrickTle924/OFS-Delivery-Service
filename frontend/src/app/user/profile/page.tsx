@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { changePassword, fetchUserProfile } from "@/lib/api-service";
+import { changePassword, fetchUserProfile, updateUserProfile } from "@/lib/api-service";
 import CustomerRoute from "@/components/CustomerRoute";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, type AuthUser } from "@/context/AuthContext";
 
 interface UserProfile {
   firstName: string;
@@ -209,7 +209,7 @@ function EditField({
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, setUser } = useAuth();
 
   const [editing, setEditing] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -266,10 +266,68 @@ export default function ProfilePage() {
     setPasswordSuccess(null);
   };
 
-  const handleSave = () => {
-    // TODO: add backend update profile route later
-    setProfile(draft);
-    setEditing(false);
+  const handleSave = async () => {
+    try {
+      setError(null);
+
+      const updatedProfile = await updateUserProfile({
+        firstName: draft.firstName.trim(),
+        lastName: draft.lastName.trim(),
+        email: draft.email.trim(),
+        phone: draft.phone.trim(),
+        deliveryAddress: draft.address.trim(),
+      });
+
+      const formattedProfile: UserProfile = {
+        firstName: updatedProfile.firstName,
+        lastName: updatedProfile.lastName,
+        email: updatedProfile.email,
+        phone: updatedProfile.phone,
+        address: updatedProfile.address,
+        createdAt: updatedProfile.createdAt
+          ? new Date(updatedProfile.createdAt).toLocaleDateString("en-US", {
+              month: "long",
+              year: "numeric",
+            })
+          : "",
+      };
+
+      setProfile(formattedProfile);
+      setDraft(formattedProfile);
+      setEditing(false);
+
+      if (typeof window !== "undefined") {
+        const storedUser = localStorage.getItem("user");
+
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser) as {
+              id: string;
+              firstName: string;
+              lastName: string;
+              email: string;
+              role: string;
+            };
+
+            const nextUser: AuthUser = {
+              ...parsedUser,
+              firstName: updatedProfile.firstName,
+              lastName: updatedProfile.lastName,
+              email: updatedProfile.email,
+              role: parsedUser.role as AuthUser["role"],
+            };
+
+            localStorage.setItem("user", JSON.stringify(nextUser));
+            setUser(nextUser);
+            window.dispatchEvent(new Event("auth-changed"));
+          } catch {
+            // Ignore malformed stored auth data and keep the server response.
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save profile.");
+    }
   };
 
   const handleCancel = () => {

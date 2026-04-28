@@ -288,6 +288,51 @@ def validate_registration_payload(data):
 
     return None
 
+
+def validate_profile_update_payload(data):
+    first_name = (data.get("firstName") or "").strip()
+    last_name = (data.get("lastName") or "").strip()
+    email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    delivery_address = (data.get("deliveryAddress") or "").strip()
+
+    if not first_name:
+        return "First name is required."
+    if len(first_name) > 50:
+        return "First name must be 50 characters or fewer."
+    if not NAME_REGEX.fullmatch(first_name):
+        return "First name contains invalid characters."
+
+    if not last_name:
+        return "Last name is required."
+    if len(last_name) > 50:
+        return "Last name must be 50 characters or fewer."
+    if not NAME_REGEX.fullmatch(last_name):
+        return "Last name contains invalid characters."
+
+    if not email:
+        return "Email is required."
+    if len(email) > 120:
+        return "Email must be 120 characters or fewer."
+    if not EMAIL_REGEX.fullmatch(email):
+        return "Email is invalid."
+
+    if not phone:
+        return "Phone number is required."
+    if len(phone) > 20:
+        return "Phone number is too long."
+    if not PHONE_REGEX.fullmatch(phone):
+        return "Phone number must be in the format (123) 456-7890."
+
+    if not delivery_address:
+        return "Delivery address is required."
+    if len(delivery_address) > 255:
+        return "Delivery address must be 255 characters or fewer."
+    if not ADDRESS_REGEX.fullmatch(delivery_address):
+        return "Delivery address contains invalid characters."
+
+    return None
+
 @app.route("/change-password", methods=["POST"])
 @jwt_required()
 def change_password():
@@ -1145,6 +1190,51 @@ def get_profile():
         "email": user.email,
         "phone": user.phone_number,
         "address": customer_profile.delivery_address if customer_profile else "",
+        "createdAt": created_at.isoformat() if created_at else None,
+        "role": user.role.value,
+    }), 200
+
+
+@app.route('/profile', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if user.role != UserRole.CUSTOMER or not user.customer_profile:
+        return jsonify({"error": "Only customers can update profile"}), 403
+
+    data = request.get_json(silent=True) or {}
+    validation_error = validate_profile_update_payload(data)
+    if validation_error:
+        return jsonify({"error": validation_error}), 400
+
+    new_email = (data.get("email") or "").strip()
+    if new_email != user.email:
+        existing_user = User.query.filter(User.email == new_email, User.id != user.id).first()
+        if existing_user:
+            return jsonify({"error": "An account with this email already exists."}), 409
+
+    user.first_name = data["firstName"].strip()
+    user.last_name = data["lastName"].strip()
+    user.email = new_email
+    user.phone_number = data["phone"].strip()
+    user.customer_profile.delivery_address = data["deliveryAddress"].strip()
+
+    db.session.commit()
+
+    created_at = user.created_at.astimezone(timezone.utc) if user.created_at else None
+
+    return jsonify({
+        "id": user.id,
+        "firstName": user.first_name,
+        "lastName": user.last_name,
+        "email": user.email,
+        "phone": user.phone_number,
+        "address": user.customer_profile.delivery_address,
         "createdAt": created_at.isoformat() if created_at else None,
         "role": user.role.value,
     }), 200
