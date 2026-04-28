@@ -290,46 +290,59 @@ def validate_registration_payload(data):
 
 
 def validate_profile_update_payload(data):
-    first_name = (data.get("firstName") or "").strip()
-    last_name = (data.get("lastName") or "").strip()
-    email = (data.get("email") or "").strip()
-    phone = (data.get("phone") or "").strip()
-    delivery_address = (data.get("deliveryAddress") or "").strip()
+    provided_fields = [
+        key
+        for key in ("firstName", "lastName", "email", "phone", "deliveryAddress")
+        if key in data
+    ]
 
-    if not first_name:
-        return "First name is required."
-    if len(first_name) > 50:
-        return "First name must be 50 characters or fewer."
-    if not NAME_REGEX.fullmatch(first_name):
-        return "First name contains invalid characters."
+    if not provided_fields:
+        return "No profile fields were provided."
 
-    if not last_name:
-        return "Last name is required."
-    if len(last_name) > 50:
-        return "Last name must be 50 characters or fewer."
-    if not NAME_REGEX.fullmatch(last_name):
-        return "Last name contains invalid characters."
+    if "firstName" in data:
+        first_name = (data.get("firstName") or "").strip()
+        if not first_name:
+            return "First name cannot be empty."
+        if len(first_name) > 50:
+            return "First name must be 50 characters or fewer."
+        if not NAME_REGEX.fullmatch(first_name):
+            return "First name contains invalid characters."
 
-    if not email:
-        return "Email is required."
-    if len(email) > 120:
-        return "Email must be 120 characters or fewer."
-    if not EMAIL_REGEX.fullmatch(email):
-        return "Email is invalid."
+    if "lastName" in data:
+        last_name = (data.get("lastName") or "").strip()
+        if not last_name:
+            return "Last name cannot be empty."
+        if len(last_name) > 50:
+            return "Last name must be 50 characters or fewer."
+        if not NAME_REGEX.fullmatch(last_name):
+            return "Last name contains invalid characters."
 
-    if not phone:
-        return "Phone number is required."
-    if len(phone) > 20:
-        return "Phone number is too long."
-    if not PHONE_REGEX.fullmatch(phone):
-        return "Phone number must be in the format (123) 456-7890."
+    if "email" in data:
+        email = (data.get("email") or "").strip()
+        if not email:
+            return "Email cannot be empty."
+        if len(email) > 120:
+            return "Email must be 120 characters or fewer."
+        if not EMAIL_REGEX.fullmatch(email):
+            return "Email is invalid."
 
-    if not delivery_address:
-        return "Delivery address is required."
-    if len(delivery_address) > 255:
-        return "Delivery address must be 255 characters or fewer."
-    if not ADDRESS_REGEX.fullmatch(delivery_address):
-        return "Delivery address contains invalid characters."
+    if "phone" in data:
+        phone = (data.get("phone") or "").strip()
+        if not phone:
+            return "Phone number cannot be empty."
+        if len(phone) > 20:
+            return "Phone number is too long."
+        if not PHONE_REGEX.fullmatch(phone):
+            return "Phone number must be in the format (123) 456-7890."
+
+    if "deliveryAddress" in data:
+        delivery_address = (data.get("deliveryAddress") or "").strip()
+        if not delivery_address:
+            return "Delivery address cannot be empty."
+        if len(delivery_address) > 255:
+            return "Delivery address must be 255 characters or fewer."
+        if not ADDRESS_REGEX.fullmatch(delivery_address):
+            return "Delivery address contains invalid characters."
 
     return None
 
@@ -1212,17 +1225,22 @@ def update_profile():
     if validation_error:
         return jsonify({"error": validation_error}), 400
 
-    new_email = (data.get("email") or "").strip()
+    first_name = ((data.get("firstName") if "firstName" in data else user.first_name) or "").strip()
+    last_name = ((data.get("lastName") if "lastName" in data else user.last_name) or "").strip()
+    new_email = ((data.get("email") if "email" in data else user.email) or "").strip()
+    phone = ((data.get("phone") if "phone" in data else user.phone_number) or "").strip()
+    delivery_address = ((data.get("deliveryAddress") if "deliveryAddress" in data else user.customer_profile.delivery_address) or "").strip()
+
     if new_email != user.email:
         existing_user = User.query.filter(User.email == new_email, User.id != user.id).first()
         if existing_user:
             return jsonify({"error": "An account with this email already exists."}), 409
 
-    user.first_name = data["firstName"].strip()
-    user.last_name = data["lastName"].strip()
+    user.first_name = first_name
+    user.last_name = last_name
     user.email = new_email
-    user.phone_number = data["phone"].strip()
-    user.customer_profile.delivery_address = data["deliveryAddress"].strip()
+    user.phone_number = phone
+    user.customer_profile.delivery_address = delivery_address
 
     db.session.commit()
 
