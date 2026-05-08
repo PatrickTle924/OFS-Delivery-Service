@@ -15,7 +15,7 @@ from flask_jwt_extended import (
     get_jwt_identity,
     jwt_required,
 )
-from sqlalchemy import text
+from sqlalchemy import func, text
 import os
 from datetime import timezone
 from models import OrderItem, User, UserRole, CustomerProfile, EmployeeProfile, Order, Trip, Product, Report, ReportMessage, Payment
@@ -62,6 +62,16 @@ def role_required(*allowed_roles):
 def get_current_user():
     user_id = get_jwt_identity()
     return User.query.get(user_id)
+
+
+def find_product_by_normalized_name(name):
+    normalized_name = (name or "").strip().lower()
+    if not normalized_name:
+        return None
+
+    return Product.query.filter(
+        func.lower(func.trim(Product.name)) == normalized_name
+    ).first()
 
 ALLOWED_ZIPS = {
     "95110", "95111", "95112", "95113", "95116", "95117", "95118",
@@ -1315,6 +1325,16 @@ def update_product(product_id):
     try:
         data = request.form
         file = request.files.get("image")
+        incoming_name = data.get("name")
+
+        if incoming_name is not None:
+            normalized_name = incoming_name.strip()
+            if not normalized_name:
+                return jsonify({"error": "Product name is required"}), 400
+
+            existing_product = find_product_by_normalized_name(normalized_name)
+            if existing_product and existing_product.product_id != product.product_id:
+                return jsonify({"error": "A product with this name already exists"}), 409
 
         if file:
             if not file.mimetype.startswith("image/"):
@@ -1329,7 +1349,8 @@ def update_product(product_id):
 
             product.image_url = f"/static/uploads/{unique_name}"
 
-        product.name = data.get("name", product.name)
+        if incoming_name is not None:
+            product.name = normalized_name
         product.description = data.get("description", product.description)
         product.weight = float(data.get("weight", product.weight))
         product.cost = float(data.get("price", product.cost))
@@ -1392,8 +1413,15 @@ def create_product():
     try:
         data = request.form
         file = request.files.get("image")
+        product_name = (data.get("name") or "").strip()
 
         image_url = None
+
+        if not product_name:
+            return jsonify({"error": "Product name is required"}), 400
+
+        if find_product_by_normalized_name(product_name):
+            return jsonify({"error": "A product with this name already exists"}), 409
 
         if file:
             if not file.mimetype.startswith("image/"):
@@ -1409,7 +1437,7 @@ def create_product():
             image_url = f"/static/uploads/{unique_name}"
 
         new_product = Product(
-            name=data.get("name"),
+            name=product_name,
             description=data.get("description", ""),
             weight=float(data.get("weight", 0)),
             cost=float(data.get("price", 0)),
