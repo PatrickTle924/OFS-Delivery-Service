@@ -30,6 +30,7 @@ export default function InventoryPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [formData, setFormData] = useState<Partial<InventoryItem>>({});
+  const [formError, setFormError] = useState("");
 
   useEffect(() => {
     loadInventory();
@@ -58,6 +59,7 @@ export default function InventoryPage() {
 
   const handleOpenAddModal = () => {
     setEditingItem(null);
+    setFormError("");
     setFormData({
       name: "",
       sku: "",
@@ -75,6 +77,7 @@ export default function InventoryPage() {
 
   const handleOpenEditModal = (item: InventoryItem) => {
     setEditingItem(item);
+    setFormError("");
     setFormData(item);
     setIsAddModalOpen(true);
   };
@@ -83,12 +86,16 @@ export default function InventoryPage() {
     setIsAddModalOpen(false);
     setEditingItem(null);
     setFormData({});
+    setFormError("");
   };
 
   const handleFormChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
+    if (formError) {
+      setFormError("");
+    }
 
     if (name === "weight") {
       if (!/^\d*\.?\d*$/.test(value)) return;
@@ -137,6 +144,10 @@ export default function InventoryPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (formError) {
+      setFormError("");
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       setFormData((prev) => ({
@@ -149,23 +160,25 @@ export default function InventoryPage() {
   };
 
   const handleSaveItem = async () => {
+    setFormError("");
+
     if (!formData.name?.trim()) {
-      alert("Please fill in the product name");
+      setFormError("Please fill in the product name");
       return;
     }
 
     if (!formData.weight || formData.weight.trim() === "") {
-      alert("Please fill in the product weight");
+      setFormError("Please fill in the product weight");
       return;
     }
 
     if (formData.price === undefined) {
-      alert("Please fill in the product price");
+      setFormError("Please fill in the product price");
       return;
     }
 
     if (formData.quantity === undefined || formData.quantity < 0) {
-      alert("Quantity must be a positive number");
+      setFormError("Quantity must be a positive number");
       return;
     }
 
@@ -173,22 +186,22 @@ export default function InventoryPage() {
     const parsedPrice = Number(formData.price);
 
     if (Number.isNaN(parsedWeight) || parsedWeight <= 0) {
-      alert("Weight must be a valid number greater than 0");
+      setFormError("Weight must be a valid number greater than 0");
       return;
     }
 
     if (parsedWeight > 100) {
-      alert("Weight cannot exceed 100");
+      setFormError("Weight cannot exceed 100");
       return;
     }
 
     if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
-      alert("Price must be a valid number greater than 0");
+      setFormError("Price must be a valid number greater than 0");
       return;
     }
 
     if (parsedPrice > 100) {
-      alert("Price cannot exceed 100");
+      setFormError("Price cannot exceed 100");
       return;
     }
 
@@ -218,7 +231,9 @@ export default function InventoryPage() {
       handleCloseModal();
     } catch (error) {
       console.error("Failed to save item:", error);
-      alert("Failed to save item");
+      setFormError(
+        error instanceof Error ? error.message : "Failed to save item",
+      );
     }
   };
 
@@ -425,6 +440,12 @@ export default function InventoryPage() {
                   <h2 className="font-playfair text-2xl text-forest mb-6">
                     {editingItem ? "Edit Item" : "Add New Item"}
                   </h2>
+
+                  {formError && (
+                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {formError}
+                    </div>
+                  )}
 
                   <div className="space-y-4">
                     {/* product name */}
