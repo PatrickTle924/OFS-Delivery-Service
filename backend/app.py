@@ -80,6 +80,58 @@ ALLOWED_ZIPS = {
     "95134", "95135", "95136", "95138", "95139", "95140", "95148"
 }
 
+
+def extract_zip_code(value):
+    if not isinstance(value, str):
+        return None
+
+    match = re.search(r"\b\d{5}\b", value)
+    return match.group(0) if match else None
+
+
+def extract_feature_zip_code(feature):
+    properties = (feature.get("properties", {}) or {})
+    candidates = [
+        feature.get("place_name"),
+        properties.get("full_address"),
+        properties.get("place_formatted"),
+        properties.get("name"),
+        properties.get("postcode"),
+        properties.get("zip"),
+        properties.get("zip_code"),
+    ]
+
+    context = properties.get("context")
+    if isinstance(context, dict):
+        for value in context.values():
+            if isinstance(value, dict):
+                candidates.extend([
+                    value.get("name"),
+                    value.get("postcode"),
+                    value.get("zip"),
+                    value.get("zip_code"),
+                ])
+            else:
+                candidates.append(value)
+    elif isinstance(context, list):
+        for value in context:
+            if isinstance(value, dict):
+                candidates.extend([
+                    value.get("name"),
+                    value.get("postcode"),
+                    value.get("zip"),
+                    value.get("zip_code"),
+                ])
+            else:
+                candidates.append(value)
+
+    for candidate in candidates:
+        zip_code = extract_zip_code(candidate)
+        if zip_code:
+            return zip_code
+
+    return None
+
 MOCK_PRODUCTS = [
     {
         "name": "Organic Fuji Apples",
@@ -614,6 +666,13 @@ def geocode():
 
     if "san jose" not in full_address.lower():
         return jsonify({"error": "Address is outside our delivery area"}), 400
+
+    resolved_zip_code = extract_feature_zip_code(feature)
+    if not resolved_zip_code:
+        return jsonify({"error": "Could not verify ZIP code for this address"}), 400
+
+    if resolved_zip_code != zip_code:
+        return jsonify({"error": "ZIP code does not match the delivery address"}), 400
 
     return jsonify({
         "lat": lat,
