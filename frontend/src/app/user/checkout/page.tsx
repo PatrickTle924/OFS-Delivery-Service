@@ -181,6 +181,11 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (totalWeight > 200) {
+      setErrorMessage("Order exceeds maximum weight of 200 lbs. Please reduce items.");
+      return;
+    }
+
     if (
       !deliveryInfo.fullName.trim() ||
       !deliveryInfo.phone.trim() ||
