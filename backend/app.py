@@ -342,6 +342,42 @@ def validate_registration_payload(data):
         if not ADDRESS_REGEX.fullmatch(delivery_address):
             return "Delivery address contains invalid characters."
 
+        # Minimal geocoding/coverage guard: verify address resolves to San Jose
+        try:
+            q = f"{delivery_address}, San Jose, CA"
+            url = "https://api.mapbox.com/search/geocode/v6/forward"
+            params = {
+                "q": q,
+                "access_token": os.getenv("MAPBOX_ACCESS_TOKEN"),
+                "limit": 1,
+                "country": "US",
+                "region": "CA",
+                "types": "address",
+            }
+
+            res = requests.get(url, params=params, timeout=5)
+            if not res.ok:
+                return "Geocoding provider error"
+
+            data = res.json()
+            features = data.get("features", [])
+            if not features:
+                return "Address not found"
+
+            feature = features[0]
+            full_address = (feature.get("properties", {}) or {}).get("full_address") or feature.get("place_name", "")
+            if "san jose" not in full_address.lower():
+                return "Address is outside our delivery area"
+
+            resolved_zip_code = extract_feature_zip_code(feature)
+            if not resolved_zip_code:
+                return "Could not verify ZIP code for this address"
+
+            if resolved_zip_code not in ALLOWED_ZIPS:
+                return "We do not deliver to that ZIP code"
+        except requests.RequestException:
+            return "Geocoding provider error"
+
     if role == "employee":
         if not employee_id:
             return "Employee ID is required."
