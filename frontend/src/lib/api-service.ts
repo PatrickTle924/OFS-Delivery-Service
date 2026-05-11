@@ -482,6 +482,22 @@ export interface PlaceOrderResponse {
   order_id: number;
 }
 
+export async function validateStock(
+  items: { product: { id: number }; quantity: number }[],
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/orders/validate-stock`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ items }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.error || "Failed to validate stock");
+  }
+}
+
 export async function placeOrder(
   payload: PlaceOrderInput,
 ): Promise<PlaceOrderResponse> {

@@ -10,7 +10,7 @@ import {
 import Navbar from "@/components/Navbar";
 import CustomerRoute from "@/components/CustomerRoute";
 import { useCart } from "@/context/CartContext";
-import { fetchUserProfile } from "@/lib/api-service";
+import { fetchUserProfile, validateStock } from "@/lib/api-service";
 import { createCheckoutSession } from "@/app/actions/stripe";
 import { DELIVERY_FEE, DELIVERY_THRESHOLD } from "@/types/shop";
 
@@ -267,6 +267,13 @@ export default function CheckoutPage() {
         delivery_lat: lat,
         delivery_lng: lng,
       };
+
+      await validateStock(
+        cart.map((item) => ({
+          product: { id: item.product.id },
+          quantity: item.quantity,
+        })),
+      );
 
       const response = await createCheckoutSession(payload);
 
