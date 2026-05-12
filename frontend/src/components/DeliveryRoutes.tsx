@@ -9,11 +9,13 @@ import { FaRoute } from "react-icons/fa6";
 interface DeliveryRoutesProps {
   orders: Order[];
   onGenerateRoutes: (selectedIds: number[]) => void;
+  hasActiveDelivery?: boolean;
 }
 
 export function DeliveryRoutes({
   orders,
   onGenerateRoutes,
+  hasActiveDelivery = false,
 }: DeliveryRoutesProps) {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -171,7 +173,7 @@ export function DeliveryRoutes({
 
         <button
           onClick={() => onGenerateRoutes([...validSelectedIds])}
-          disabled={validSelectedIds.size === 0}
+          disabled={validSelectedIds.size === 0 || hasActiveDelivery}
           className="w-full py-3 rounded-xl text-sm font-medium tracking-wide transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90"
           style={{
             background: "var(--color-forest)",
@@ -180,6 +182,14 @@ export function DeliveryRoutes({
         >
           Generate Optimized Routes
         </button>
+        {hasActiveDelivery && (
+          <p
+            className="mt-2 text-xs text-center"
+            style={{ color: "var(--color-sage)" }}
+          >
+            A delivery is already in progress. Complete or cancel it to start a new one.
+          </p>
+        )}
       </div>
     </Card>
   );
