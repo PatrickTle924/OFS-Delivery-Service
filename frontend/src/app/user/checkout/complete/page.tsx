@@ -48,9 +48,9 @@ function CheckoutCompleteContent() {
 
         const session = await verifyCheckoutSession(sessionId);
 
-        if (session.paymentStatus !== "paid") {
+        if (session.status !== "complete") {
           throw new Error(
-            "Payment was not completed. Please try checkout again.",
+            "Checkout was not completed. Please try again.",
           );
         }
 
