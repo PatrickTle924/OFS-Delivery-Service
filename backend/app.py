@@ -1123,6 +1123,17 @@ def approve_route():
     if not order_ids:
         return jsonify({"error": "Missing orderIds"}), 400
 
+    active_trip = (
+        Trip.query.filter(Trip.status.in_(["assigned", "in_progress"]))
+        .first()
+    )
+    if active_trip:
+        return jsonify(
+            {
+                "error": "A delivery is already in progress. Complete or cancel it before starting a new one."
+            }
+        ), 409
+
     selected_orders = Order.query.filter(Order.order_id.in_(order_ids)).all()
 
     if not selected_orders:

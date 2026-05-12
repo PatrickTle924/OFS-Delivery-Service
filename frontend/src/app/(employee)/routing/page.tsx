@@ -129,6 +129,12 @@ export default function DeliveryDashboardPage() {
         throw new Error("No route preview available");
       }
 
+      if (activeDelivery?.tripId) {
+        throw new Error(
+          "A delivery is already in progress. Complete or cancel it before starting a new one.",
+        );
+      }
+
       setLoadingRoutes(true);
       setError(null);
       setCompletionMessage(null);
@@ -194,6 +200,7 @@ export default function DeliveryDashboardPage() {
                 <DeliveryRoutes
                   orders={orders}
                   onGenerateRoutes={handleGenerateRoutes}
+                  hasActiveDelivery={Boolean(activeDelivery?.tripId)}
                 />
               )}
             </div>
