@@ -2,12 +2,15 @@ import os
 import json
 import requests
 import stripe
+from dotenv import load_dotenv
 from functools import wraps
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
 import uuid
 import re
 from flask import Flask, jsonify, request
+
+load_dotenv()
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager,
