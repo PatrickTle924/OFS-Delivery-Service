@@ -7,3 +7,4 @@ python-dotenv==1.2.1
 requests
 flask-jwt-extended==4.7.1
 pytest
+stripe

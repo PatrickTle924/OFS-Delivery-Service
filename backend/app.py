@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import stripe
 from functools import wraps
 from datetime import datetime, timezone
 from werkzeug.utils import secure_filename
@@ -42,6 +43,7 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 MAPBOX_ACCESS_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN")
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 def role_required(*allowed_roles):
     def decorator(fn):
@@ -780,10 +782,15 @@ def create_order():
             product = Product.query.get(i["product"]["id"])
             if not product:
                 db.session.rollback()
-                return jsonify({"error": f"Product with id {i['product']['id']} not found"}), 400   
+                return jsonify({"error": f"Product with id {i['product']['id']} not found"}), 400
             if product.stock < i["quantity"]:
                 db.session.rollback()
-                return jsonify({"error": f"Not enough stock for product {product.name}"}), 400      
+                if payment_intent_id:
+                    try:
+                        stripe.PaymentIntent.cancel(payment_intent_id)
+                    except stripe.StripeError:
+                        pass
+                return jsonify({"error": f"Not enough stock for product {product.name}. You have not been charged."}), 400
 
             quantity = i["quantity"]
             subtotal += product.cost * quantity
@@ -823,6 +830,13 @@ def create_order():
         for order_item in order_items:
             order_item.order_id = new_order.order_id
             db.session.add(order_item)
+
+        if payment_intent_id:
+            try:
+                stripe.PaymentIntent.capture(payment_intent_id)
+            except stripe.StripeError as e:
+                db.session.rollback()
+                return jsonify({"error": f"Payment capture failed: {str(e)}. Please contact support."}), 500
 
         if stripe_session_id:
             db.session.add(

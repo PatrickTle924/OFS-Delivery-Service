@@ -60,6 +60,9 @@ export async function createCheckoutSession(payload: any) {
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     ui_mode: "embedded_page" as any, // The 'any' cast here is the escape hatch
     mode: "payment",
+    payment_intent_data: {
+      capture_method: "manual",
+    },
     line_items: lineItems,
     metadata: {
       fullName: (payload as CheckoutPayload).deliveryInfo.fullName,
